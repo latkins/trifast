@@ -73,7 +73,9 @@ class _triangle_attention(torch.autograd.Function):
             BLOCK_J=BLOCK_J
         )
 
-        BLOCK_J = 32
+        db = db.to(torch.float32)
+
+        BLOCK_J = 16
         BLOCK_K = 16
         # Do the actual backward pass.
         grid = lambda args: (triton.cdiv(n, BLOCK_K), n, h)
@@ -111,6 +113,8 @@ class _triangle_attention(torch.autograd.Function):
             H=h, M=n, N=n, DIM=dim,
             BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K
         )
+
+        db = db.to(b.dtype)
 
         return dq, dk, dv, db, dmask
 
