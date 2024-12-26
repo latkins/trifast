@@ -87,12 +87,13 @@ class _triangle_attention(torch.autograd.Function):
             v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
             b, b.stride(0), b.stride(1), b.stride(2),
             l, l.stride(0), l.stride(1), l.stride(2),
-            # mask, mask.stride(0), mask.stride(1),
+            mask, mask.stride(0), mask.stride(1),
             do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
             dk, dk.stride(0), dk.stride(1), dk.stride(2), dk.stride(3),
             dv, dv.stride(0), dv.stride(1), dv.stride(2), dv.stride(3),
             db, db.stride(0), db.stride(1), db.stride(2),
             sm_scale=ctx.sm_scale,
+            neg_inf=torch.finfo(q.dtype).min,
             H=h, M=n, N=n, DIM=dim,
             BLOCK_K=KVB_BLOCK_K, BLOCK_J=KVB_BLOCK_J
         )
@@ -108,10 +109,11 @@ class _triangle_attention(torch.autograd.Function):
             v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
             b, b.stride(0), b.stride(1), b.stride(2),
             l, l.stride(0), l.stride(1), l.stride(2),
-            # mask, mask.stride(0), mask.stride(1),
+            mask, mask.stride(0), mask.stride(1),
             do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
             dq, dq.stride(0), dq.stride(1), dq.stride(2), dq.stride(3),
             sm_scale=ctx.sm_scale,
+            neg_inf=torch.finfo(q.dtype).min,
             H=h, M=n, N=n, DIM=dim,
             BLOCK_J=Q_BLOCK_J, BLOCK_K=Q_BLOCK_K
         )
