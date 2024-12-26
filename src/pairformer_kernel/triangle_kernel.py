@@ -26,7 +26,7 @@ pruner = {
     "perf_model": estimate_performance,
     "top_n": 3,
     "early_config_prune": config_pruner,
-}
+} if not is_testing else None
 
 c = short_configs if is_testing else configs
 c = short_configs
@@ -34,7 +34,7 @@ c = short_configs
 
 # fmt: off
 @triton.autotune(configs=c,
-                 prune_configs_by=None if is_testing else pruner,
+                 prune_configs_by=pruner,
                  key=["DIM", "N"])
 @triton.jit
 def _fwd(
@@ -50,89 +50,73 @@ def _fwd(
     N: tl.constexpr, DIM: tl.constexpr,
     BLOCK_J: tl.constexpr, BLOCK_K: tl.constexpr,
 ):
+    input_dtype = q_ptr.dtype.element_ty
+
     pid_h = tl.program_id(2)  # Parallelize along h
     pid_i = tl.program_id(1)  # Parallelize along i
     pid_j = tl.program_id(0)  # Parallelize over chunks of j
 
-    inv_ln2: tl.constexpr = 1.4426950408889634 # = 1.0 / ln(2),
-    ln2: tl.constexpr = 0.6931471824645996 # = ln(2),
+    inv_ln2: tl.constexpr = 1.4426950408889634 # = 1.0 / ln(2)
+    ln2: tl.constexpr = 0.6931471824645996 # = ln(2)
 
-    # Compute offsets for the current block
-    h_offset = pid_h
-    i_offset = pid_i
-    j_offset = pid_j * BLOCK_J
-    k_offset = 0  # K always starts at 0
+    start_h = pid_h
+    start_i = pid_i
+    start_j = pid_j * BLOCK_J
+    start_k = 0 # we iterate over k, so each pid starts at 0
 
-    q_block_ptr = tl.make_block_ptr(
-        q_ptr + (h_offset * stride_qh) + (i_offset * stride_qi),
-        shape=(N, DIM),
-        strides=(stride_qj, stride_qd),
-        offsets=(j_offset, 0),
-        block_shape=(BLOCK_J, DIM),
-        order=(1, 0),
-    )
-    kt_block_ptr = tl.make_block_ptr(
-        k_ptr + (h_offset * stride_kh) + (i_offset * stride_ki),
-        shape=(DIM, N),
-        strides=(stride_kd, stride_kj),
-        offsets=(0, k_offset),
-        block_shape=(DIM, BLOCK_K),
-        order=(0, 1),
-    )
-    b_block_ptr = tl.make_block_ptr(
-        b_ptr + (h_offset * stride_bh),
-        shape=(N, N),
-        strides=(stride_bi, stride_bj),
-        offsets=(j_offset, 0),
-        block_shape=(BLOCK_J, BLOCK_K),
-        order=(0, 1),
-    )
+    k_idxs = tl.arange(0, BLOCK_K)
+    j_idxs = tl.arange(0, BLOCK_J) + start_j
+    d_idxs = tl.arange(0, DIM)
 
-    v_block_ptr = tl.make_block_ptr(
-        v_ptr + (h_offset * stride_vh) + (i_offset * stride_vi),
-        shape=(N, DIM),
-        strides=(stride_vj, stride_vd),
-        offsets=(k_offset, 0),
-        block_shape=(BLOCK_K, DIM),
-        order=(1, 0),
-    )
-    o_block_ptr = tl.make_block_ptr(
-        o_ptr + (h_offset * stride_oh) + (i_offset * stride_oi),
-        shape=(N, DIM),
-        strides=(stride_oj, stride_od),
-        offsets=(j_offset, 0),
-        block_shape=(BLOCK_J, DIM),
-        order=(1, 0),
-    )
+    base_q_ptr = q_ptr + (start_h * stride_qh) + (start_i * stride_qi)
+    q_block_ptrs = base_q_ptr + (j_idxs[:, None] * stride_qj) + (d_idxs[None, :] * stride_qd) # [j,d]
 
-    mask_block_ptr = tl.make_block_ptr(
-        mask_ptr,
-        shape=(N, N),
-        strides=(stride_maski, stride_maskj),
-        offsets=(i_offset, 0),
-        block_shape=(1, BLOCK_K),
-        order=(0, 1),
-    )
+    base_kt_ptr = k_ptr + (start_h * stride_kh) + (start_i * stride_ki)
+    kt_block_ptrs = base_kt_ptr + (d_idxs[:, None]) * stride_kd + (k_idxs[None, :] * stride_kj) # [d,k]
+
+    base_b_ptr = b_ptr + (start_h * stride_bh)
+    b_block_ptrs = base_b_ptr + (j_idxs[:, None] * stride_bi) + (k_idxs[None, :] * stride_bj) # [j,k]
+
+    base_v_ptr = v_ptr + (start_h * stride_vh) + (start_i * stride_vi)
+    v_block_ptrs = base_v_ptr + (k_idxs[:, None] * stride_vj) + (d_idxs[None, :] * stride_vd) # [k,d]
+
+    base_lse_ptr = lse_ptr + (start_h * stride_lseh) + (start_i * stride_lsei)
+    lse_block_ptrs = base_lse_ptr + (j_idxs * stride_lsej) # [j]
+
+    base_mask_ptr = mask_ptr
+    mask_block_ptrs= base_mask_ptr + (start_i * stride_maski) + (j_idxs * stride_maskj) # [j]
+
+    base_o_ptr = o_ptr + (start_h * stride_oh) + (start_i * stride_oi)
+    o_block_ptrs = base_o_ptr + (j_idxs[:, None] * stride_oj) + (d_idxs[None, :] * stride_od) # [j,d]
+
 
     scores_max = tl.full([BLOCK_J], value=-float("inf"), dtype=tl.float32)
     sm_denom = tl.full([BLOCK_J], value=0, dtype=tl.float32)
     acc = tl.full([BLOCK_J, DIM], value=0, dtype=tl.float32)
 
-    q_block = tl.load(q_block_ptr)  # [j,d]
+    mask_j = j_idxs < N
+
+
+    q_block = tl.load(q_block_ptrs, mask_j[:, None])  # [j,d]
     q_block = q_block * tl.full([1], value=sm_scale, dtype=q_block.type.element_ty)
 
-    for k_offset in range(0, N, BLOCK_K):
-        kt_block = tl.load(kt_block_ptr)  # [k,d]
-        b_block = tl.load(b_block_ptr)  # [j,k]
+    for start_k in range(0, N, BLOCK_K):
+        start_k = tl.multiple_of(start_k, BLOCK_K)
+        mask_k = (k_idxs + start_k) < N
 
-        m_block = tl.load(mask_block_ptr) # [1,k]
+
+        kt_block = tl.load(kt_block_ptrs, mask_k[None, :])  # [d,k]
+        b_block = tl.load(b_block_ptrs,  mask_j[:, None] | mask_k[None, :])  # [j,k]
+        m_block = tl.load(mask_block_ptrs, mask_k) # [k]
 
         scores = b_block.to(tl.float32)
         scores = tl.dot(q_block, kt_block, scores)  # [j,k]
         scores *= inv_ln2 # 1.0 / ln(2), [j,k]
 
+        scores = tl.where(mask_j[:, None] & mask_k[None, :], scores, neg_inf)
+
         # we want to make scores -inf at mask locations
-        scores = tl.where(m_block, neg_inf, scores)  # [j,k]
+        scores = tl.where(m_block[None, :], neg_inf, scores)  # [j,k]  This works.
 
         # Iterative softmax
         block_max = tl.maximum(scores_max, tl.max(scores, 1))  # [j]
@@ -145,35 +129,27 @@ def _fwd(
         sm_denom = sm_denom * exp_scale + summed_exp_scores  # [j]
 
         acc = acc * exp_scale[:, None]  # [j,d]
-        v_block = tl.load(v_block_ptr)  # [k,d]
-        exp_scores = exp_scores.to(v_block.type.element_ty)  # [j,k]
+        v_block = tl.load(v_block_ptrs, mask_k[:, None])  # [k,d]
+        exp_scores = exp_scores.to(input_dtype)  # [j,k]
+
         acc = tl.dot(exp_scores, v_block, acc)  # [j,d]
 
         scores_max = block_max
 
         # Advance to next block along the k dimension.
-        kt_block_ptr = tl.advance(kt_block_ptr, (0, BLOCK_K))
-        v_block_ptr = tl.advance(v_block_ptr, (BLOCK_K, 0))
-        b_block_ptr = tl.advance(b_block_ptr, (0, BLOCK_K))
-        mask_block_ptr = tl.advance(mask_block_ptr, (0, BLOCK_K))
+        kt_block_ptrs += BLOCK_K * stride_kj
+        v_block_ptrs += BLOCK_K * stride_vj
+        b_block_ptrs += BLOCK_K * stride_bj
+        mask_block_ptrs += BLOCK_K * stride_maskj
+
 
     normalize = acc / sm_denom[:, None]
-    final_output = normalize.to(o_ptr.type.element_ty)
-    tl.store(o_block_ptr, final_output)
+    final_output = normalize.to(input_dtype)
+    tl.store(o_block_ptrs, final_output, mask=mask_j[:, None])
 
-    # lse = scores_max + tl.math.log2(sm_denom)
     lse = (scores_max * ln2) + tl.log(sm_denom)
 
-    lse_block_ptr = tl.make_block_ptr(
-        lse_ptr + (h_offset * stride_lseh) + (i_offset * stride_lsei),
-        shape=(N,),
-        strides=(stride_lsej,),
-        offsets=(j_offset,),
-        block_shape=(BLOCK_J,),
-        order=(0,),
-    )
-
-    tl.store(lse_block_ptr, lse)
+    tl.store(lse_block_ptrs, lse, mask=mask_j)
 
 #fmt: off
 @triton.jit
@@ -212,21 +188,20 @@ def _bwd_preprocess(o_ptr, stride_oh, stride_oi, stride_oj, stride_od,
 
     d_block_ptr = tl.make_block_ptr(
         d_ptr + (h_offset * stride_dh) + (i_offset * stride_di),
-        shape=(N, ),
-        strides=(stride_dj, ),
-        offsets=(j_offset, ),
-        block_shape=(BLOCK_J, ),
-        order=(0, ),
+        shape=(N,),
+        strides=(stride_dj,),
+        offsets=(j_offset,),
+        block_shape=(BLOCK_J,),
+        order=(0,),
     )
 
 
-    block_o = tl.load(o_block_ptr)
-    block_do = tl.load(do_block_ptr)
+    block_o = tl.load(o_block_ptr, boundary_check=(0,))
+    block_do = tl.load(do_block_ptr, boundary_check=(0,))
 
     vals = tl.sum(block_do * block_o, axis=1)
 
-    tl.store(d_block_ptr, vals.to(tl.float32))
-
+    tl.store(d_block_ptr, vals.to(tl.float32), boundary_check=(0,))
 
 # fmt: off
 @triton.jit

@@ -38,7 +38,7 @@ class _triangle_attention(torch.autograd.Function):
             b, b.stride(0), b.stride(1), b.stride(2),
             mask, mask.stride(0), mask.stride(1),
             neg_inf=torch.finfo(q.dtype).min,
-            sm_scale=sm_scale, N=n, DIM=dim
+            sm_scale=sm_scale, N=n, DIM=dim,
         )
         ctx.save_for_backward(q, k, v, b, mask, o, l)
         ctx.grid = grid
@@ -61,24 +61,24 @@ class _triangle_attention(torch.autograd.Function):
         # e.g. [h,n,n]
         # we need d_{hij} = (o_{hij} \dot do_{hij}) to simplify gradient computation, so pre-compute
         d = torch.empty_like(l)
-        BLOCK_J = 16  # TODO: we don't want to autotune backwards, so lets have some heuristics for choosing block here?
-        pre_grid = lambda args: (triton.cdiv(n, BLOCK_J), n, h)
+        PRE_BLOCK_J = 16
+        pre_grid = lambda args: (triton.cdiv(n, PRE_BLOCK_J), n, h)
 
         # fmt: off
         _bwd_preprocess[pre_grid](
             o, o.stride(0), o.stride(1), o.stride(2), o.stride(3),
             do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
             d, d.stride(0), d.stride(1), d.stride(2),
-            N=n, DIM=dim,
-            BLOCK_J=BLOCK_J
+            N=n, DIM=dim, BLOCK_J=PRE_BLOCK_J
         )
 
         db = db.to(torch.float32)
 
-        BLOCK_J = 16
-        BLOCK_K = 16
+        KVB_BLOCK_K = 16
+        KVB_BLOCK_J = 16
+
         # Do the actual backward pass.
-        grid = lambda args: (triton.cdiv(n, BLOCK_K), n, h)
+        grid = lambda args: (triton.cdiv(n, KVB_BLOCK_K), n, h)
         # fmt: off
         _bwd_kvb_kernel[grid](
             d, d.stride(0), d.stride(1), d.stride(2),
@@ -94,10 +94,12 @@ class _triangle_attention(torch.autograd.Function):
             db, db.stride(0), db.stride(1), db.stride(2),
             sm_scale=ctx.sm_scale,
             H=h, M=n, N=n, DIM=dim,
-            BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K
+            BLOCK_K=KVB_BLOCK_K, BLOCK_J=KVB_BLOCK_J
         )
 
-        q_grid = lambda args: (triton.cdiv(n, BLOCK_J), n, h)
+        Q_BLOCK_J = 16
+        Q_BLOCK_K = 16
+        q_grid = lambda args: (triton.cdiv(n, Q_BLOCK_J), n, h)
         # fmt: off
         _bwd_q_kernel[q_grid](
             d, d.stride(0), d.stride(1), d.stride(2),
@@ -111,7 +113,7 @@ class _triangle_attention(torch.autograd.Function):
             dq, dq.stride(0), dq.stride(1), dq.stride(2), dq.stride(3),
             sm_scale=ctx.sm_scale,
             H=h, M=n, N=n, DIM=dim,
-            BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K
+            BLOCK_J=Q_BLOCK_J, BLOCK_K=Q_BLOCK_K
         )
 
         db = db.to(b.dtype)
