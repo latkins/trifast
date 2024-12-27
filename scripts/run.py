@@ -25,9 +25,9 @@ def get_tensors(n=128, d=32, h=4, device="cuda", dtype=torch.bfloat16):
         .normal_(mean=0.0, std=1.0)
         .requires_grad_()
     )
-    #bias = torch.zeros_like(bias).requires_grad_()
 
     mask = torch.zeros(n, n).to(device) > 0
+    mask = torch.randint(0, 2, (n, n), device=device, dtype=dtype)
     return q, k, v, bias, mask
 
 
@@ -54,12 +54,18 @@ def profile(n, d=32, h=2, device="cuda", dtype=torch.float32):
     atol = 1e-2
     rtol = 0.01
 
+    print(f"out: {(tri_out - ref_out).abs().max():.3f}")
     print(f"dv: {(tri_dv - ref_dv).abs().max():.3f}")
     print(f"dk: {(tri_dk - ref_dk).abs().max():.3f}")
     print(f"dq: {(tri_dq - ref_dq).abs().max():.3f}")
     print(f"db: {(tri_db - ref_db).abs().max():.3f}")
 
-    breakpoint()
+    d = (ref_out - tri_out).abs()
+
+    torch.set_printoptions(precision=2)
+
+    # Show more rows and columns (adjust numbers as needed)
 
 # for n in [16, 32, 64, 128, 256, 512]:
-profile(n=128, h=2, d=16)
+for _ in range(50):
+    profile(n=362, h=4, d=32)

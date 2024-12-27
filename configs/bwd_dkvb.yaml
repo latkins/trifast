@@ -1,0 +1,257 @@
+grid_points:
+  n:
+  - 32
+  - 64
+  - 128
+  - 256
+  - 512
+  - 1024
+  h:
+  - 1
+  - 2
+  - 4
+  - 8
+  d:
+  - 32
+  - 64
+settings:
+  32,1,32:
+    block_j: 16
+    block_k: 16
+    warp: 8
+    num_stages: 6
+  32,1,64:
+    block_j: 16
+    block_k: 32
+    warp: 2
+    num_stages: 4
+  32,2,32:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  32,2,64:
+    block_j: 64
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  32,4,32:
+    block_j: 16
+    block_k: 64
+    warp: 1
+    num_stages: 6
+  32,4,64:
+    block_j: 16
+    block_k: 32
+    warp: 1
+    num_stages: 3
+  32,8,32:
+    block_j: 32
+    block_k: 32
+    warp: 2
+    num_stages: 4
+  32,8,64:
+    block_j: 32
+    block_k: 32
+    warp: 4
+    num_stages: 4
+  64,1,32:
+    block_j: 32
+    block_k: 16
+    warp: 2
+    num_stages: 2
+  64,1,64:
+    block_j: 16
+    block_k: 16
+    warp: 8
+    num_stages: 6
+  64,2,32:
+    block_j: 32
+    block_k: 16
+    warp: 2
+    num_stages: 1
+  64,2,64:
+    block_j: 32
+    block_k: 32
+    warp: 1
+    num_stages: 3
+  64,4,32:
+    block_j: 32
+    block_k: 64
+    warp: 1
+    num_stages: 2
+  64,4,64:
+    block_j: 64
+    block_k: 16
+    warp: 2
+    num_stages: 1
+  64,8,32:
+    block_j: 16
+    block_k: 16
+    warp: 4
+    num_stages: 1
+  64,8,64:
+    block_j: 16
+    block_k: 16
+    warp: 1
+    num_stages: 2
+  128,1,32:
+    block_j: 16
+    block_k: 16
+    warp: 4
+    num_stages: 2
+  128,1,64:
+    block_j: 16
+    block_k: 64
+    warp: 2
+    num_stages: 1
+  128,2,32:
+    block_j: 16
+    block_k: 16
+    warp: 2
+    num_stages: 1
+  128,2,64:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  128,4,32:
+    block_j: 16
+    block_k: 32
+    warp: 2
+    num_stages: 3
+  128,4,64:
+    block_j: 32
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  128,8,32:
+    block_j: 32
+    block_k: 16
+    warp: 4
+    num_stages: 2
+  128,8,64:
+    block_j: 16
+    block_k: 16
+    warp: 2
+    num_stages: 2
+  256,1,32:
+    block_j: 32
+    block_k: 16
+    warp: 2
+    num_stages: 2
+  256,1,64:
+    block_j: 32
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  256,2,32:
+    block_j: 16
+    block_k: 16
+    warp: 4
+    num_stages: 3
+  256,2,64:
+    block_j: 32
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  256,4,32:
+    block_j: 16
+    block_k: 16
+    warp: 4
+    num_stages: 3
+  256,4,64:
+    block_j: 32
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  256,8,32:
+    block_j: 16
+    block_k: 16
+    warp: 2
+    num_stages: 2
+  256,8,64:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 2
+  512,1,32:
+    block_j: 16
+    block_k: 16
+    warp: 4
+    num_stages: 3
+  512,1,64:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  512,2,32:
+    block_j: 32
+    block_k: 16
+    warp: 2
+    num_stages: 1
+  512,2,64:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  512,4,32:
+    block_j: 16
+    block_k: 16
+    warp: 2
+    num_stages: 3
+  512,4,64:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  512,8,32:
+    block_j: 16
+    block_k: 16
+    warp: 2
+    num_stages: 3
+  512,8,64:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  1024,1,32:
+    block_j: 16
+    block_k: 16
+    warp: 4
+    num_stages: 3
+  1024,1,64:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  1024,2,32:
+    block_j: 16
+    block_k: 16
+    warp: 2
+    num_stages: 2
+  1024,2,64:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  1024,4,32:
+    block_j: 16
+    block_k: 16
+    warp: 2
+    num_stages: 3
+  1024,4,64:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  1024,8,32:
+    block_j: 16
+    block_k: 16
+    warp: 2
+    num_stages: 3
+  1024,8,64:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 3
