@@ -4,8 +4,6 @@ from jaxtyping import Bool, Float
 import math
 from einops import einsum, rearrange
 
-from pairformer_kernel.utils import typecheck
-
 from deepspeed.ops.deepspeed4science import DS4Sci_EvoformerAttention
 
 
@@ -13,7 +11,6 @@ def neg_inf(dtype) -> float:
     return torch.finfo(dtype).min
 
 
-@typecheck
 def triangle_attention_simple(
     q: Float[torch.Tensor, "... h n n d"],
     k: Float[torch.Tensor, "... h n n d"],
@@ -30,7 +27,8 @@ def triangle_attention_simple(
     # This modifies qk_dot_bias in place.
     qk_dot_bias.masked_fill_(
         #                                              h  i j  k
-        rearrange(mask, "... n m -> ... () n () m"), neg_inf(q.dtype)
+        rearrange(mask, "... n m -> ... () n () m"),
+        neg_inf(q.dtype),
     )
     a_ijk = torch.softmax(qk_dot_bias, dim=-1)
 
@@ -53,7 +51,6 @@ def attention_reference(
     mask_bias = neg_inf(q.dtype) * (mask).to(q.dtype)
     sm_scale = q.shape[-1] ** -0.5
 
-
     q = rearrange(q, "... h i j d -> ... () i h j d")
     k = rearrange(k, "... h i j d -> ... () i h d j")
     v = rearrange(v, "... h i j d -> ... () i h j d")
@@ -62,7 +59,7 @@ def attention_reference(
     # mask_bias should be ... i 1 1 k e.g. broadcast over
     mask_bias = rearrange(mask_bias, "... i j -> ... i () () j")
 
-    a = torch.matmul(q, k) * sm_scale # ... i h j k
+    a = torch.matmul(q, k) * sm_scale  # ... i h j k
     a += mask_bias
     a += bias
 
@@ -160,7 +157,7 @@ def triangle_attention_block(
 
                     scores = (
                         einsum(q_block, k_block, "i j d, i k d -> i j k").to(dtype)
-                            + b_block[None, :, :]
+                        + b_block[None, :, :]
                     )  # [Bi, Bj, Bk]
 
                     block_max = torch.max(scores, dim=-1)[0]
@@ -250,12 +247,10 @@ def blocked_triangular_attention(
                     # if (b == 0) and (i == 0) and (j == 0):
                     #     print("k_sum", k_block.sum())
 
-
                     scores = (
                         einsum(q_block, k_block, "i j d, i k d -> i j k").to(dtype)
                         + b_block[None]
                     )  # [Bi, Bj, Bk]
-
 
                     block_max = scores.max(dim=-1)[0]
                     scores_new = torch.maximum(scores_max, block_max)
@@ -280,43 +275,3 @@ def blocked_triangular_attention(
                 L[b, i:i_end, j:j_end] = logsumexp
 
     return output
-
-
-if __name__ == "__main__":
-    n = 128
-    d = 32
-    h = 4
-
-    torch.manual_seed(0)
-
-    device = "cuda"
-    dtype = torch.bfloat16
-    dtype = torch.float32
-
-    q = torch.randn(h, n, n, d).to(device, dtype=dtype)
-    k = torch.randn(h, n, n, d).to(device, dtype=dtype)
-    v = torch.randn(h, n, n, d).to(device, dtype=dtype)
-    bias = torch.randn(n, n, h).to(device, dtype=dtype)
-    # mask = torch.randn(n, n).to(device) > 0
-    mask = torch.zeros(n, n).to(device) > 0
-
-    o = triangle_attention_simple(q, k, v, bias, mask)
-    o_ds4s = triangle_self_attention_ds4s(q, k, v, bias, mask)
-    o_ref = attention_reference(q, k, v, bias, mask)
-    o_block_a = triangle_attention_block(
-        q, k, v, rearrange(bias, "i j h -> h i j"), mask
-    )
-    o_block = blocked_triangular_attention(
-        q,
-        k,
-        v,
-        rearrange(bias, "i j h -> h i j"),
-        mask,
-    )
-
-    # Magic tolerance number from deepspeed repo.
-    assert (o_ref - o_ds4s).abs().max() < 5e-2
-    assert (o_ref - o).abs().max() < 5e-2
-    assert (o_ds4s - o).abs().max() < 5e-2
-    assert (o_ref - o_block).abs().max() < 5e-2
-    assert (o_ref - o_block_a).abs().max() < 5e-2
