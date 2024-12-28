@@ -336,20 +336,20 @@ def _bwd_q_kernel(
     # Indices of blocks.
     k_idxs = tl.arange(0, BLOCK_K)
     j_idxs = tl.arange(0, BLOCK_J) + start_j
-    d_idxs = tl.arange(0, DIM)[None, :] # [1, d]
+    d_idxs = tl.arange(0, DIM)
 
     # Set up ptrs to blocks.
     base_q_ptr = q_ptr + (start_h * stride_qh) + (start_i * stride_qm)
-    q_ptrs = base_q_ptr + (j_idxs[:, None] * stride_qn) + (d_idxs * stride_qd) # [j,d]
+    q_ptrs = base_q_ptr + (j_idxs[:, None] * stride_qn) + (d_idxs[None, :] * stride_qd) # [j,d]
 
     base_k_ptr = k_ptr + (start_h * stride_kh) + (start_i * stride_km)
-    k_ptrs = base_k_ptr + (k_idxs[:, None] * stride_kn) + (d_idxs) * stride_kd # [k,d]
+    k_ptrs = base_k_ptr + (k_idxs[:, None] * stride_kn) + (d_idxs[None, :] * stride_kd) # [k,d]
 
     base_b_ptr = b_ptr + (start_h * stride_bh)
-    b_ptrs = base_b_ptr + (j_idxs[:, None] * stride_bm) + (k_idxs * stride_bn) # [j,k]
+    b_ptrs = base_b_ptr + (j_idxs[:, None] * stride_bm) + (k_idxs[None, :] * stride_bn) # [j,k]
 
     base_v_ptr = v_ptr + (start_h * stride_vh) + (start_i * stride_vm)
-    v_ptrs = base_v_ptr + (k_idxs[:, None] * stride_vn) + (d_idxs * stride_vd) # [k,d]
+    vt_ptrs = base_v_ptr  + (d_idxs[:, None] * stride_vd) + (k_idxs[None, :] * stride_vn) # [d,k]
 
     base_l_ptr = l_ptr + (start_h * stride_lh) + (start_i * stride_lm)
     l_ptrs = base_l_ptr + (j_idxs * stride_ln) # [j]
@@ -361,10 +361,10 @@ def _bwd_q_kernel(
     d_ptrs = base_d_ptr + (j_idxs * stride_dn)  # [j]
 
     base_dq_ptr = dq_ptr + (start_h * stride_dqh) + (start_i * stride_dqm)
-    dq_ptrs = base_dq_ptr + (j_idxs[:, None] * stride_dqn) + (d_idxs * stride_dqd) # [j,d]
+    dq_ptrs = base_dq_ptr + (j_idxs[:, None] * stride_dqn) + (d_idxs[None, :] * stride_dqd) # [j,d]
 
     base_do_ptr = do_ptr + (start_h * stride_doh) + (start_i * stride_dom)
-    do_ptrs = base_do_ptr + (j_idxs[:, None] * stride_don) + (d_idxs * stride_dod) # [j,d]
+    do_ptrs = base_do_ptr + (j_idxs[:, None] * stride_don) + (d_idxs[None, :] * stride_dod) # [j,d]
 
     mask_j = j_idxs < N
 
@@ -380,11 +380,10 @@ def _bwd_q_kernel(
         start_k = tl.multiple_of(start_k, BLOCK_K)
         mask_k = (k_idxs + start_k) < N
 
-        k_block = tl.load(k_ptrs, mask_k[:, None]) # [k,d]
-        k_block = k_block * tl.full([1], value=sm_scale, dtype=input_dtype) # [j,d]
-        v_block = tl.load(v_ptrs, mask_k[:, None]) # [k,d]
         b_block = tl.load(b_ptrs, mask_j[:, None] | mask_k[None, :]).to(tl.float32) # [j,k]
         m_block = tl.load(mask_ptrs, mask_k) # [k]
+        k_block = tl.load(k_ptrs, mask_k[:, None]) # [k,d]
+        k_block = k_block * tl.full([1], value=sm_scale, dtype=input_dtype) # [j,d]
 
         scores = tl.dot(q_block, tl.trans(k_block), b_block) # [j,k]
         scores = tl.where(m_block[None, :], neg_inf, scores)  # [j,k]
@@ -392,7 +391,8 @@ def _bwd_q_kernel(
 
         sm_value = tl.math.exp2((scores  - sm_denom[:, None]) * inv_ln2) # [j,k]
 
-        dsm_value = tl.dot(do_block, tl.trans(v_block)) # [j,k]
+        vt_block = tl.load(vt_ptrs, mask_k[None, :]) # [d,k]
+        dsm_value = tl.dot(do_block, vt_block) # [j,k]
 
         dscores = sm_value * (dsm_value - delta[:, None]) # [j,k]
         dscores = dscores.to(input_dtype) # [j,k]
@@ -400,7 +400,7 @@ def _bwd_q_kernel(
         dq_block += tl.dot(dscores, k_block)
 
         k_ptrs += BLOCK_K * stride_kn
-        v_ptrs += BLOCK_K * stride_vn
+        vt_ptrs += BLOCK_K * stride_vn
         b_ptrs += BLOCK_K * stride_bn
         mask_ptrs += BLOCK_K * stride_maskn
 
