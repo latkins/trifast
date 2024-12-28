@@ -216,13 +216,13 @@ def _bwd_kvb_kernel(
     q_ptrs = base_q_ptr + (j_idxs[:, None] * stride_qn) + (d_idxs[None, :] * stride_qd) # [j,d]
 
     base_k_ptr = k_ptr + (start_h * stride_kh) + (start_i * stride_km)
-    k_ptrs = base_k_ptr + (k_idxs[:, None] * stride_kn) + (d_idxs[None, :]) * stride_kd  # [k,d]
+    kt_ptrs = base_k_ptr + (d_idxs[:, None]) * stride_kd + (k_idxs[None, :] * stride_kn)   # [d,k]
 
     base_b_ptr = b_ptr + (start_h * stride_bh)
     b_ptrs = base_b_ptr + (j_idxs[:, None] * stride_bm) + (k_idxs[None, :] * stride_bn) # [j,k]
 
     base_v_ptr = v_ptr + (start_h * stride_vh) + (start_i * stride_vm)
-    v_ptrs = base_v_ptr + (k_idxs[:, None] * stride_vn) + (d_idxs[None, :] * stride_vd) # [k,d]
+    vt_ptrs = base_v_ptr + (d_idxs[:, None] * stride_vd) + (k_idxs[None,:] * stride_vn)  # [d,k]
 
     base_l_ptr = l_ptr + (start_h * stride_lh) + (start_i * stride_lm)
     l_ptrs = base_l_ptr + (j_idxs * stride_ln) # [j]
@@ -248,9 +248,9 @@ def _bwd_kvb_kernel(
     mask_k = k_idxs < N
 
     # load k/v once per pid
-    v_block = tl.load(v_ptrs, mask_k[:, None]) # [k,d]
-    k_block = tl.load(k_ptrs, mask_k[:, None]) # [k,d]
-    k_block = k_block * tl.full([1], value=sm_scale, dtype=input_dtype) # [k,d]
+    vt_block = tl.load(vt_ptrs, mask_k[None, :]) # [d,k]
+    kt_block = tl.load(kt_ptrs, mask_k[None, :]) # [d,k]
+    kt_block = kt_block * tl.full([1], value=sm_scale, dtype=input_dtype) # [k,d]
     m_block = tl.load(mask_ptrs, mask_k) # [k]
 
     # accumulate over j for dk/dv
@@ -265,7 +265,7 @@ def _bwd_kvb_kernel(
         q = tl.load(q_ptrs, mask_j[:, None]) # [j,d]
         b = tl.load(b_ptrs, mask_j[:, None] | mask_k[None, :]).to(tl.float32) # [j,k]
 
-        scores = tl.dot(q, tl.trans(k_block), b) # [j,k]
+        scores = tl.dot(q, kt_block, b) # [j,k]
         scores = tl.where(mask_j[:, None] & mask_k[None, :], scores, neg_inf)
         scores= tl.where(m_block[None, :], neg_inf, scores)
 
@@ -278,12 +278,11 @@ def _bwd_kvb_kernel(
         delta = tl.load(d_ptrs, mask_j) # [j]
 
         dp = tl.zeros([BLOCK_J, BLOCK_K], dtype=tl.float32)
-        dp = tl.dot(do, tl.trans(v_block), dp) # [j,k]
+        dp = tl.dot(do, vt_block, dp) # [j,k]
 
         ds = p * (dp - delta[:, None]) # [j,k]
 
-        # This is likely very slow?
-        # mask ds here
+        # This is likely very slow? yes, it slow kernel by factor of ~2.
         tl.atomic_add(db_ptrs + (start_j * stride_dbm),  ds.to(tl.float32))
 
         ds = ds.to(input_dtype) # [j,k]
