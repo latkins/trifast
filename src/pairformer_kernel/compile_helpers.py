@@ -1,11 +1,12 @@
 import yaml
 from functools import lru_cache
 from bisect import bisect_right
+from pathlib import Path
 
 
 class ParamLookup:
     @classmethod
-    def from_file(cls, filename: str):
+    def from_file(cls, filename: str | Path):
         with open(filename) as f:
             return cls(f.read())
 

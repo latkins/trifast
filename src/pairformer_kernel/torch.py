@@ -9,6 +9,7 @@ from pairformer_kernel.triangle_kernel import (
     _bwd_preprocess,
     _bwd_kvb_kernel,
     _bwd_q_kernel,
+    _bwd_b_kernel,
 )
 from pairformer_kernel.compile_helpers import ParamLookup
 from pathlib import Path
@@ -88,11 +89,6 @@ class _triangle_attention(torch.autograd.Function):
             N=n, DIM=dim, BLOCK_J=PRE_BLOCK_J
         )
 
-        db = db.to(torch.float32)
-
-        KVB_BLOCK_K = 16
-        KVB_BLOCK_J = 16
-
         params = bwd_dkvb_lookup.get_parameters(n, h, dim)
 
         # Do the actual backward pass.
@@ -109,7 +105,6 @@ class _triangle_attention(torch.autograd.Function):
             do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
             dk, dk.stride(0), dk.stride(1), dk.stride(2), dk.stride(3),
             dv, dv.stride(0), dv.stride(1), dv.stride(2), dv.stride(3),
-            db, db.stride(0), db.stride(1), db.stride(2),
             sm_scale=ctx.sm_scale,
             neg_inf=torch.finfo(q.dtype).min,
             H=h, M=n, N=n, DIM=dim,
@@ -138,6 +133,29 @@ class _triangle_attention(torch.autograd.Function):
         )
 
         db = db.to(b.dtype)
+
+        block_j = 16
+        block_k = 16
+
+        b_grid = (triton.cdiv(n, block_j), triton.cdiv(n, block_k), h)
+
+        _bwd_b_kernel[b_grid](
+            d, d.stride(0), d.stride(1), d.stride(2),
+            q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
+            k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
+            v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+            b, b.stride(0), b.stride(1), b.stride(2),
+            l, l.stride(0), l.stride(1), l.stride(2),
+            mask, mask.stride(0), mask.stride(1),
+            do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
+            db, db.stride(0), db.stride(1), db.stride(2),
+            sm_scale=ctx.sm_scale,
+            neg_inf=torch.finfo(q.dtype).min,
+            H=h, M=n, N=n, DIM=dim,
+            BLOCK_J=block_j, BLOCK_K=block_k,
+            num_warps=1, num_stages=1,
+        )
+
 
         return dq, dk, dv, db, dmask
 
