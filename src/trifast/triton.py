@@ -2,10 +2,6 @@ import triton
 import triton.testing
 import triton.language as tl
 
-
-# We don't want to do a lot of autotune if we are in a test.
-
-
 # fmt: off
 @triton.jit
 def _fwd(
@@ -175,7 +171,7 @@ def _bwd_preprocess(o_ptr, stride_oh, stride_oi, stride_oj, stride_od,
 
 # fmt: off
 @triton.jit
-def _bwd_kvb_kernel(
+def _bwd_kv_kernel(
     d_ptr, stride_dh, stride_dm, stride_dn,
     q_ptr, stride_qh, stride_qm, stride_qn, stride_qd,
     k_ptr, stride_kh, stride_km, stride_kn, stride_kd,

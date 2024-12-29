@@ -7,7 +7,7 @@ import triton.testing
 from trifast.triton import (
     _fwd,
     _bwd_preprocess,
-    _bwd_kvb_kernel,
+    _bwd_kv_kernel,
     _bwd_q_kernel,
     _bwd_b_kernel,
 )
@@ -18,7 +18,8 @@ cfg_dir = Path(__file__).parent.parent.parent / "configs"
 
 fwd_lookup = ParamLookup.from_file(cfg_dir / "fwd.yaml")
 bwd_dq_lookup = ParamLookup.from_file(cfg_dir / "bwd_dq.yaml")
-bwd_dkvb_lookup = ParamLookup.from_file(cfg_dir / "bwd_dkvb.yaml")
+bwd_dkv_lookup = ParamLookup.from_file(cfg_dir / "bwd_dkvb.yaml")
+bwd_db_lookup = ParamLookup.from_file(cfg_dir / "bwd_db.yaml")
 
 
 class _triangle_attention(torch.autograd.Function):
@@ -89,12 +90,12 @@ class _triangle_attention(torch.autograd.Function):
             N=n, DIM=dim, BLOCK_J=PRE_BLOCK_J
         )
 
-        params = bwd_dkvb_lookup.get_parameters(n, h, dim)
+        params = bwd_dkv_lookup.get_parameters(n, h, dim)
 
         # Do the actual backward pass.
         grid = (triton.cdiv(n, params["block_k"]), n, h)
         # fmt: off
-        _bwd_kvb_kernel[grid](
+        _bwd_kv_kernel[grid](
             d, d.stride(0), d.stride(1), d.stride(2),
             q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
             k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
@@ -132,12 +133,8 @@ class _triangle_attention(torch.autograd.Function):
             num_warps=params["warp"], num_stages=params["num_stages"],
         )
 
-        db = db.to(b.dtype)
-
-        block_j = 16
-        block_k = 16
-
-        b_grid = (triton.cdiv(n, block_j), triton.cdiv(n, block_k), h)
+        params = bwd_db_lookup.get_parameters(n, h, dim)
+        b_grid = (triton.cdiv(n, params['block_j']), triton.cdiv(n, params['block_k']), h)
 
         _bwd_b_kernel[b_grid](
             d, d.stride(0), d.stride(1), d.stride(2),
@@ -152,8 +149,8 @@ class _triangle_attention(torch.autograd.Function):
             sm_scale=ctx.sm_scale,
             neg_inf=torch.finfo(q.dtype).min,
             H=h, M=n, N=n, DIM=dim,
-            BLOCK_J=block_j, BLOCK_K=block_k,
-            num_warps=1, num_stages=1,
+            BLOCK_J=params['block_j'], BLOCK_K=params['block_k'],
+            num_warps=params['warp'], num_stages=params['num_stages'],
         )
 
 
