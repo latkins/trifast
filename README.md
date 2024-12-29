@@ -6,6 +6,7 @@ Fused Triangle Self Attention kernel, written in triton. Basically flash attenti
 - As far as I can tell, faster than naieve implementation.
 
 ## Plots
+All done on a 3090 in bfloat16.
 ### Forward
 ![TSA forward runtime](benchmark_plots/tri_attn_fwd.png "TSA forward runtime")
 ![TSA forward memory](benchmark_plots/peak_memory_fwd.png "TSA forward memory")
@@ -20,7 +21,6 @@ Todos:
 - [] Add batch -> head and head -> batch if necessary.
 - [] Improve tests (e.g. larger scale, unittest on actual model values?)
 - [] Try to train a model with it.
-- [] Tune `_bwd_db`.
 - [] Make WARPS/STAGES/etc consistent in `scripts/tune.py`
 - [] Tune tries different dtypes, knows about cuda capability
 - [] Add tl.constexpr for HAS_MASK and DIVISIBLE, if statements where appropriate.
