@@ -1,6 +1,6 @@
 import torch
-from pairformer_kernel.torch import triangle_attention
-from pairformer_kernel.equiv import attention_reference
+from trifast.torch import triangle_attention
+from trifast.equiv import attention_reference
 
 
 def get_tensors(n=128, d=32, h=4, device="cuda", dtype=torch.bfloat16):

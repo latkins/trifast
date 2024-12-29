@@ -3,7 +3,7 @@ import torch
 from trifast.triton import (
     _fwd,
     _bwd_q_kernel,
-    _bwd_kvb_kernel,
+    _bwd_kv_kernel,
     _bwd_b_kernel,
 )
 import random
@@ -184,7 +184,7 @@ def run_dq(*, q, k, v, b, mask, l, do, d, BLOCK_J, BLOCK_K, WARP, NUM_STAGES, **
     )
 
 
-def run_dkvb(
+def run_dkv(
     *, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, WARP, NUM_STAGES, **kwargs
 ):
     dk = torch.zeros_like(k)
@@ -198,7 +198,7 @@ def run_dkvb(
 
     grid = lambda args: (triton.cdiv(n, BLOCK_K), n, h)
     # fmt: off
-    _bwd_kvb_kernel[grid](
+    _bwd_kv_kernel[grid](
         d, d.stride(0), d.stride(1), d.stride(2),
         q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
         k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
@@ -209,7 +209,6 @@ def run_dkvb(
         do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
         dk, dk.stride(0), dk.stride(1), dk.stride(2), dk.stride(3),
         dv, dv.stride(0), dv.stride(1), dv.stride(2), dv.stride(3),
-        db, db.stride(0), db.stride(1), db.stride(2),
         sm_scale=sm_scale,
         neg_inf=torch.finfo(q.dtype).min,
         H=h, M=n, N=n, DIM=dim,
@@ -384,24 +383,28 @@ root.mkdir(exist_ok=True)
 cfg_dir = root.parent / "configs"
 cfg_dir.mkdir(exist_ok=True)
 
-tune(reps=5, fn=run_db, name="bwd_db", root=root)
 tune(reps=5, fn=run_forward, name="fwd", root=root)
-tune(reps=5, fn=run_dq, name="bwd_dq", root=root)
-tune(reps=5, fn=run_dkvb, name="bwd_dkvb", root=root)
-
 df = pd.read_parquet(root)
-
-bwd_db_yaml = create_config_lookup(df[df["method"] == "bwd_db"])
-
 fwd_yaml = create_config_lookup(df[df["method"] == "fwd"])
-
 with open(cfg_dir / "fwd.yaml", "w") as f:
     f.write(fwd_yaml)
 
+tune(reps=5, fn=run_dkv, name="bwd_dkv", root=root)
+df = pd.read_parquet(root)
+bwd_dkv_yaml = create_config_lookup(df[df["method"] == "bwd_dkv"])
+with open(cfg_dir / "bwd_dkv.yaml", "w") as f:
+    f.write(bwd_dkv_yaml)
+
+tune(reps=5, fn=run_db, name="bwd_db", root=root)
+df = pd.read_parquet(root)
+bwd_db_yaml = create_config_lookup(df[df["method"] == "bwd_db"])
+with open(cfg_dir / "bwd_db.yaml", "w") as f:
+    f.write(bwd_db_yaml)
+
+tune(reps=5, fn=run_dq, name="bwd_dq", root=root)
+df = pd.read_parquet(root)
 bwd_dq_yaml = create_config_lookup(df[df["method"] == "bwd_dq"])
 with open(cfg_dir / "bwd_dq.yaml", "w") as f:
     f.write(bwd_dq_yaml)
 
-bwd_dkvb_yaml = create_config_lookup(df[df["method"] == "bwd_dkvb"])
-with open(cfg_dir / "bwd_dkvb.yaml", "w") as f:
-    f.write(bwd_dkvb_yaml)
+

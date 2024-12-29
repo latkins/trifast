@@ -2,8 +2,8 @@ from pathlib import Path
 import triton
 import torch
 import triton.testing
-from pairformer_kernel.torch import triangle_attention
-from pairformer_kernel.equiv import (
+from trifast.torch import triangle_attention
+from trifast.equiv import (
     triangle_attention_simple,
     triangle_self_attention_ds4s,
 )
@@ -11,7 +11,16 @@ from pairformer_kernel.equiv import (
 configs = [
     triton.testing.Benchmark(
         x_names=["n"],  # Argument names to use as x-axis
-        x_vals=[32, 64, 128, 256, 512, 768, 1024, 2048],  # Different values for n to benchmark
+        x_vals=[
+            32,
+            64,
+            128,
+            256,
+            512,
+            768,
+            1024,
+            2048,
+        ],  # Different values for n to benchmark
         line_arg="provider",  # Argument name whose value corresponds to different lines in the plot
         line_vals=["compiled", "simple", "kernel", "ds4s"],  # Values for the line_arg
         line_names=[
@@ -20,10 +29,12 @@ configs = [
             "Triton Kernel",
             "Deepspeed",
         ],  # Labels for the lines
-        styles=[("green", "--"), ("red", "--"), ("blue", "-"), ("orange", ":")],  # Line styles
-        # line_vals=['kernel'],  # Values for the line_arg
-        # line_names=['Triton Kernel'],  # Labels for the lines
-        # styles=[('blue', '-')],  # Line styles
+        styles=[
+            ("green", "--"),
+            ("red", "--"),
+            ("blue", "-"),
+            ("orange", ":"),
+        ],  # Line styles
         ylabel="milliseconds",  # Label name for the y-axis
         plot_name=f"tri_attn_{mode}",
         args={"mode": mode},  # Other arguments to pass to the function
@@ -72,7 +83,9 @@ def benchmark(n, mode, provider):
     q, k, v, bias, mask, do = get_tensors()
 
     if provider == "compiled":
-        fn = lambda: torch.compile(triangle_attention_simple, fullgraph=True)(q, k, v, bias, mask)
+        fn = lambda: torch.compile(triangle_attention_simple, fullgraph=True)(
+            q, k, v, bias, mask
+        )
     if provider == "simple":
         fn = lambda: triangle_attention_simple(q, k, v, bias, mask)
     if provider == "kernel":
@@ -96,8 +109,8 @@ def benchmark(n, mode, provider):
 
     return ms, max_ms, min_ms
 
+
 out_dir = Path(__file__).parent.parent
-out_dir.mkdir(exist_ok=True)
 benchmark.run(
     print_data=True,
     show_plots=True,

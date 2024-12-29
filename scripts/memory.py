@@ -1,22 +1,30 @@
 import torch
-from torch._dynamo.convert_frame import exc
-from pairformer_kernel.torch import triangle_attention
-from pairformer_kernel.equiv import (
+from trifast.torch import triangle_attention
+from trifast.equiv import (
     triangle_self_attention_ds4s,
     triangle_attention_simple,
 )
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
+from pathlib import Path
 
 
 def get_tensors(n=128, d=32, h=2, device="cuda", dtype=torch.bfloat16, mode="fwd"):
     torch.manual_seed(0)
-    q = torch.randn((h, n, n, d), device=device, dtype=dtype, requires_grad=mode == "bwd")
-    k = torch.randn((h, n, n, d), device=device, dtype=dtype, requires_grad=mode == "bwd")
-    v = torch.randn((h, n, n, d), device=device, dtype=dtype, requires_grad=mode == "bwd")
+    q = torch.randn(
+        (h, n, n, d), device=device, dtype=dtype, requires_grad=mode == "bwd"
+    )
+    k = torch.randn(
+        (h, n, n, d), device=device, dtype=dtype, requires_grad=mode == "bwd"
+    )
+    v = torch.randn(
+        (h, n, n, d), device=device, dtype=dtype, requires_grad=mode == "bwd"
+    )
 
-    bias = torch.randn((h, n, n), device=device, dtype=dtype, requires_grad=mode == "bwd")
+    bias = torch.randn(
+        (h, n, n), device=device, dtype=dtype, requires_grad=mode == "bwd"
+    )
     mask = torch.randn((n, n), device=device) > 0
     mask = torch.zeros_like(mask)
 
@@ -63,16 +71,23 @@ for n in [32, 64, 128, 256, 512, 1024]:
                     print(f"OOM {name} {n} {mode}")
                     peak_memory = float("inf")
                 else:
-                    peak_memory = torch.cuda.max_memory_allocated() / 1024**2  # convert to mb
+                    peak_memory = (
+                        torch.cuda.max_memory_allocated() / 1024**2
+                    )  # convert to mb
 
-                rows.append({"n": n, "peak_memory": peak_memory, "model": name, "mode": mode})
+                rows.append(
+                    {"n": n, "peak_memory": peak_memory, "model": name, "mode": mode}
+                )
 
 df = pd.DataFrame(rows)
 
+
+out_dir = Path(__file__).parent.parent / "benchmark_plots"
+out_dir.mkdir(exist_ok=True)
 for mode in ["fwd", "bwd"]:
     f = df[df["mode"] == mode]
     sns.lineplot(data=f, x="n", y="peak_memory", hue="model")
-    plt.title(f"Peak memory usage ({mode})")
+    plt.title(f"Peak memory usage ({mode}), 3090, bfloat16")
     plt.savefig(f"peak_memory_{mode}.png")
     plt.close()
 
@@ -84,4 +99,3 @@ pivot_df = (
 )
 
 print(pivot_df)
-
