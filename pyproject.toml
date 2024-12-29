@@ -1,7 +1,7 @@
 [project]
-name = "pairformer-kernel"
+name = "trifast"
 version = "0.1.0"
-description = "Add your description here"
+description = "Fast kernel for triangle self attetion."
 readme = "README.md"
 authors = [
     { name = "Liam Atkinson", email = "liamatkinson@gmail.com" }
@@ -18,9 +18,6 @@ dependencies = [
     "torch>=2.5.1",
     "triton>=3.1.0",
 ]
-
-[project.scripts]
-pairformer-kernel = "pairformer_kernel:main"
 
 [build-system]
 requires = ["hatchling"]
