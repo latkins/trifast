@@ -5,6 +5,10 @@ Fused Triangle Self Attention kernel, written in triton. Basically flash attenti
 - Faster (~5x) forward pass than next fastest implementation I could find (DS4S evoformer kernel).
 - As far as I can tell, faster than naieve implementation.
 
+![TSA forward](benchmark_plots/tri_attn_fwd.png "TSA forward")
+![TSA backward](benchmark_plots/tri_attn_bwd.png "TSA backward")
+
+
 Todos:
 [] Add head dim to mask, so we can batch.
 [] Add batch -> head and head -> batch if necessary.
@@ -13,3 +17,6 @@ Todos:
 [] Tune `_bwd_db`.
 [] Make WARPS/STAGES/etc consistent in `scripts/tune.py`
 [] Tune tries different dtypes, knows about cuda capability
+[] Add tl.constexpr for HAS_MASK and DIVISIBLE, if statements where appropriate.
+[] Can we perform and of dq/db/dkv transposed?
+[] Can we fold delta pre-computation into e.g. db?
