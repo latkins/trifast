@@ -1,9 +1,10 @@
 import triton
 import torch
-from pairformer_kernel.triangle_kernel import (
+from trifast.triton import (
     _fwd,
     _bwd_q_kernel,
     _bwd_kvb_kernel,
+    _bwd_b_kernel,
 )
 import random
 from tqdm import tqdm
@@ -11,9 +12,6 @@ from pathlib import Path
 import time
 import pandas as pd
 import yaml
-
-
-
 
 
 device_cap = torch.cuda.get_device_capability()
@@ -219,6 +217,34 @@ def run_dkvb(
     )
 
 
+def run_db(*, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, WARP, NUM_STAGES, **kwargs):
+    db = torch.zeros_like(b).to(torch.float32)
+    dmask = torch.zeros_like(mask)
+
+    sm_scale = q.shape[-1] ** -0.5
+
+    h, m, n, dim = q.shape
+
+    grid = (triton.cdiv(n, BLOCK_J), triton.cdiv(n, BLOCK_K), h)
+    # fmt: off
+    _bwd_b_kernel[grid](
+        d, d.stride(0), d.stride(1), d.stride(2),
+        q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
+        k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
+        v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+        b, b.stride(0), b.stride(1), b.stride(2),
+        l, l.stride(0), l.stride(1), l.stride(2),
+        mask, mask.stride(0), mask.stride(1),
+        do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
+        db, db.stride(0), db.stride(1), db.stride(2),
+        sm_scale=sm_scale,
+        neg_inf=torch.finfo(q.dtype).min,
+        H=h, M=n, N=n, DIM=dim,
+        BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K,
+        num_warps=WARP, num_stages=NUM_STAGES,
+    )
+
+
 def tune(reps, fn, name, root):
     blocks_j = [16, 32, 64, 128]
     blocks_k = [16, 32, 64, 128]
@@ -315,6 +341,7 @@ def tune(reps, fn, name, root):
 
             df.to_parquet(str(path))
 
+
 def create_config_lookup(df: pd.DataFrame) -> str:
     """Create grid configuration from DataFrame."""
     # Get mean cuda_time for each configuration
@@ -357,11 +384,14 @@ root.mkdir(exist_ok=True)
 cfg_dir = root.parent / "configs"
 cfg_dir.mkdir(exist_ok=True)
 
+tune(reps=5, fn=run_db, name="bwd_db", root=root)
 tune(reps=5, fn=run_forward, name="fwd", root=root)
 tune(reps=5, fn=run_dq, name="bwd_dq", root=root)
 tune(reps=5, fn=run_dkvb, name="bwd_dkvb", root=root)
 
 df = pd.read_parquet(root)
+
+bwd_db_yaml = create_config_lookup(df[df["method"] == "bwd_db"])
 
 fwd_yaml = create_config_lookup(df[df["method"] == "fwd"])
 
@@ -375,10 +405,3 @@ with open(cfg_dir / "bwd_dq.yaml", "w") as f:
 bwd_dkvb_yaml = create_config_lookup(df[df["method"] == "bwd_dkvb"])
 with open(cfg_dir / "bwd_dkvb.yaml", "w") as f:
     f.write(bwd_dkvb_yaml)
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-
