@@ -2,7 +2,7 @@ Fused Triangle Self Attention kernel, written in triton. Basically flash attenti
 
 - n^2 memory complexity (vs n^3 for pure pytorch).
 - Faster (~2x) backward pass than next fastest implementation I could find (DS4S evoformer kernel).
-- Faster (~5x) forward pass than next fastest implementation I could find (DS4S evoformer kernel).
+- Faster (~4x) forward pass than next fastest implementation I could find (DS4S evoformer kernel).
 - As far as I can tell, faster than naieve implementation.
 
 ## Plots
