@@ -39,7 +39,7 @@ warmup = 50
 
 rows = []
 
-for n in [32, 64, 128, 256, 512, 1024]:
+for n in [32, 64, 128, 256, 512, 1024, 2048]:
     for mode in ["fwd", "bwd"]:
         for name, model in [
             ("simple", triangle_attention_simple),
@@ -88,7 +88,7 @@ for mode in ["fwd", "bwd"]:
     f = df[df["mode"] == mode]
     sns.lineplot(data=f, x="n", y="peak_memory", hue="model")
     plt.title(f"Peak memory usage ({mode}), 3090, bfloat16")
-    plt.savefig(f"peak_memory_{mode}.png")
+    plt.savefig(out_dir / f"peak_memory_{mode}.png")
     plt.close()
 
 pivot_df = (
