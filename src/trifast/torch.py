@@ -4,14 +4,14 @@ from jaxtyping import Bool, Float
 
 import triton.testing
 
-from pairformer_kernel.triangle_kernel import (
+from trifast.triton import (
     _fwd,
     _bwd_preprocess,
     _bwd_kvb_kernel,
     _bwd_q_kernel,
     _bwd_b_kernel,
 )
-from pairformer_kernel.compile_helpers import ParamLookup
+from trifast.compile_helpers import ParamLookup
 from pathlib import Path
 
 cfg_dir = Path(__file__).parent.parent.parent / "configs"

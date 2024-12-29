@@ -1,0 +1,22 @@
+{
+  "include": [
+    "src",
+  ],
+
+  "exclude": [
+    "**/__pycache__",
+  ],
+
+  "ignore":[ "src/trifast/triton.py",
+             "scripts/flash.py",
+  ],
+  "reportMissingImports": "error",
+  "reportMissingTypeStubs": false,
+
+  "pythonVersion": "3.11",
+  "pythonPlatform": "Linux",
+
+  "venvPath": ".venv",
+    "venv": ".",
+    "typeCheckingMode": "standard",
+}

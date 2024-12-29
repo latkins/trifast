@@ -1,8 +1,8 @@
 import torch
 import pytest
 from hypothesis import given, strategies as st, settings
-from pairformer_kernel.torch import triangle_attention
-from pairformer_kernel.equiv import attention_reference
+from trifast.torch import triangle_attention
+from trifast.equiv import attention_reference
 
 
 # Simplified power of two strategy with smaller range
