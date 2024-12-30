@@ -8,8 +8,6 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "beartype>=0.19.0",
-    "deepspeed>=0.16.0",
     "einops>=0.8.0",
     "jaxtyping>=0.2.36",
     "numpy>=2.1.3",
@@ -19,12 +17,21 @@ dependencies = [
     "triton>=3.1.0",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=8.3.4",
+    "hypothesis>=6.122.3",
+]
+benchmark = [
+    "deepspeed>=0.16.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[dependency-groups]
-dev = [
+[tool.uv]
+dev-dependencies = [
     "fastparquet>=2024.11.0",
     "matplotlib>=3.9.2",
     "neovim>=0.3.1",
@@ -33,12 +40,4 @@ dev = [
     "pyarrow>=18.1.0",
     "ruff>=0.8.0",
     "seaborn>=0.13.2",
-]
-testing = [
-    "deepspeed>=0.16.0",
-    "hypothesis>=6.122.3",
-    "pytest>=8.3.3",
-]
-benchmark = [
-    "deepspeed>=0.16.0",
 ]

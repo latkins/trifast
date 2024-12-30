@@ -449,7 +449,7 @@ def _bwd_b_kernel(
     l_ptrs = base_l_ptr + (j_idxs * stride_ln) # [j]
 
     base_mask_ptr = m_ptr
-    mask_ptrs= base_mask_ptr +  (k_idxs * stride_mn) # [k]
+    mask_ptrs= base_mask_ptr + (k_idxs * stride_mn) # [k]
 
     base_do_ptr = do_ptr + (start_h * stride_doh)
     do_ptrs = base_do_ptr + (j_idxs[:, None] * stride_don) + (d_idxs[None, :] * stride_dod) # [j,d]
@@ -498,7 +498,7 @@ def _bwd_b_kernel(
         k_ptrs += stride_km * BLOCK_I
         v_ptrs += stride_vm * BLOCK_I
         l_ptrs += stride_lm * BLOCK_I
-        mask_ptrs += stride_mn * BLOCK_I
+        mask_ptrs += stride_mm * BLOCK_I
         d_ptrs += stride_dm * BLOCK_I
         do_ptrs += stride_dom * BLOCK_I
 
