@@ -16,154 +16,154 @@ grid_points:
   - 64
 settings:
   32,1,32:
-    block_j: 64
-    block_k: 16
+    block_j: 128
+    block_k: 32
     warp: 4
     num_stages: 3
   32,1,64:
     block_j: 16
-    block_k: 32
-    warp: 4
-    num_stages: 1
+    block_k: 128
+    warp: 2
+    num_stages: 4
   32,2,32:
-    block_j: 64
-    block_k: 16
-    warp: 4
+    block_j: 16
+    block_k: 128
+    warp: 1
     num_stages: 4
   32,2,64:
-    block_j: 16
-    block_k: 32
+    block_j: 32
+    block_k: 128
     warp: 4
-    num_stages: 3
+    num_stages: 2
   32,4,32:
     block_j: 16
     block_k: 32
-    warp: 8
-    num_stages: 4
+    warp: 1
+    num_stages: 3
   32,4,64:
     block_j: 16
     block_k: 32
     warp: 2
-    num_stages: 6
+    num_stages: 4
   32,8,32:
+    block_j: 16
+    block_k: 16
+    warp: 4
+    num_stages: 6
+  32,8,64:
+    block_j: 16
+    block_k: 32
+    warp: 4
+    num_stages: 1
+  64,1,32:
+    block_j: 16
+    block_k: 32
+    warp: 2
+    num_stages: 4
+  64,1,64:
+    block_j: 64
+    block_k: 32
+    warp: 4
+    num_stages: 3
+  64,2,32:
+    block_j: 16
+    block_k: 16
+    warp: 2
+    num_stages: 6
+  64,2,64:
+    block_j: 32
+    block_k: 64
+    warp: 4
+    num_stages: 1
+  64,4,32:
+    block_j: 32
+    block_k: 16
+    warp: 2
+    num_stages: 2
+  64,4,64:
+    block_j: 64
+    block_k: 64
+    warp: 4
+    num_stages: 3
+  64,8,32:
+    block_j: 32
+    block_k: 64
+    warp: 2
+    num_stages: 1
+  64,8,64:
     block_j: 64
     block_k: 32
     warp: 4
     num_stages: 1
-  32,8,64:
-    block_j: 32
-    block_k: 16
-    warp: 2
-    num_stages: 3
-  64,1,32:
-    block_j: 16
-    block_k: 16
-    warp: 1
-    num_stages: 3
-  64,1,64:
-    block_j: 32
-    block_k: 16
-    warp: 2
-    num_stages: 6
-  64,2,32:
-    block_j: 16
-    block_k: 16
-    warp: 4
-    num_stages: 2
-  64,2,64:
-    block_j: 32
-    block_k: 16
-    warp: 2
-    num_stages: 4
-  64,4,32:
-    block_j: 16
-    block_k: 16
-    warp: 2
-    num_stages: 4
-  64,4,64:
-    block_j: 16
-    block_k: 16
-    warp: 1
-    num_stages: 4
-  64,8,32:
-    block_j: 32
-    block_k: 16
-    warp: 2
-    num_stages: 4
-  64,8,64:
-    block_j: 16
-    block_k: 16
-    warp: 2
-    num_stages: 4
   128,1,32:
     block_j: 16
     block_k: 16
-    warp: 1
-    num_stages: 6
+    warp: 2
+    num_stages: 1
   128,1,64:
     block_j: 16
     block_k: 16
-    warp: 4
-    num_stages: 6
+    warp: 1
+    num_stages: 2
   128,2,32:
     block_j: 16
     block_k: 16
     warp: 2
-    num_stages: 6
+    num_stages: 2
   128,2,64:
-    block_j: 16
-    block_k: 16
-    warp: 1
-    num_stages: 3
-  128,4,32:
     block_j: 64
-    block_k: 16
-    warp: 4
-    num_stages: 3
-  128,4,64:
-    block_j: 64
-    block_k: 16
-    warp: 4
-    num_stages: 4
-  128,8,32:
-    block_j: 16
-    block_k: 32
-    warp: 1
-    num_stages: 4
-  128,8,64:
-    block_j: 64
-    block_k: 32
-    warp: 4
-    num_stages: 4
-  256,1,32:
-    block_j: 64
-    block_k: 16
-    warp: 4
-    num_stages: 4
-  256,1,64:
-    block_j: 16
-    block_k: 32
-    warp: 2
-    num_stages: 4
-  256,2,32:
-    block_j: 16
     block_k: 64
+    warp: 4
+    num_stages: 1
+  128,4,32:
+    block_j: 32
+    block_k: 16
     warp: 2
-    num_stages: 4
+    num_stages: 2
+  128,4,64:
+    block_j: 32
+    block_k: 32
+    warp: 2
+    num_stages: 1
+  128,8,32:
+    block_j: 128
+    block_k: 64
+    warp: 4
+    num_stages: 1
+  128,8,64:
+    block_j: 16
+    block_k: 16
+    warp: 2
+    num_stages: 2
+  256,1,32:
+    block_j: 32
+    block_k: 32
+    warp: 1
+    num_stages: 2
+  256,1,64:
+    block_j: 32
+    block_k: 16
+    warp: 2
+    num_stages: 2
+  256,2,32:
+    block_j: 32
+    block_k: 16
+    warp: 1
+    num_stages: 1
   256,2,64:
     block_j: 16
-    block_k: 128
-    warp: 4
+    block_k: 16
+    warp: 1
     num_stages: 3
   256,4,32:
     block_j: 32
-    block_k: 128
-    warp: 4
-    num_stages: 3
-  256,4,64:
-    block_j: 64
     block_k: 64
-    warp: 4
+    warp: 2
+    num_stages: 1
+  256,4,64:
+    block_j: 32
+    block_k: 32
+    warp: 2
     num_stages: 2
   256,8,32:
     block_j: 32
@@ -172,18 +172,18 @@ settings:
     num_stages: 1
   256,8,64:
     block_j: 32
-    block_k: 128
-    warp: 4
-    num_stages: 1
+    block_k: 32
+    warp: 2
+    num_stages: 2
   512,1,32:
     block_j: 32
     block_k: 64
     warp: 2
-    num_stages: 3
+    num_stages: 1
   512,1,64:
-    block_j: 64
+    block_j: 32
     block_k: 32
-    warp: 4
+    warp: 2
     num_stages: 2
   512,2,32:
     block_j: 32
@@ -192,66 +192,66 @@ settings:
     num_stages: 1
   512,2,64:
     block_j: 32
-    block_k: 64
+    block_k: 32
     warp: 2
     num_stages: 1
   512,4,32:
-    block_j: 64
-    block_k: 64
-    warp: 2
-    num_stages: 1
-  512,4,64:
     block_j: 32
     block_k: 64
     warp: 2
     num_stages: 1
-  512,8,32:
+  512,4,64:
     block_j: 64
+    block_k: 64
+    warp: 4
+    num_stages: 1
+  512,8,32:
+    block_j: 32
     block_k: 64
     warp: 2
     num_stages: 1
   512,8,64:
     block_j: 32
-    block_k: 128
-    warp: 4
+    block_k: 32
+    warp: 2
     num_stages: 1
   1024,1,32:
-    block_j: 64
+    block_j: 32
     block_k: 64
     warp: 2
     num_stages: 1
   1024,1,64:
-    block_j: 32
+    block_j: 64
     block_k: 64
-    warp: 2
+    warp: 4
     num_stages: 1
   1024,2,32:
-    block_j: 64
+    block_j: 32
     block_k: 64
     warp: 2
     num_stages: 1
   1024,2,64:
-    block_j: 32
+    block_j: 64
     block_k: 64
-    warp: 2
+    warp: 4
     num_stages: 1
   1024,4,32:
-    block_j: 64
-    block_k: 128
-    warp: 4
-    num_stages: 1
+    block_j: 32
+    block_k: 32
+    warp: 2
+    num_stages: 2
   1024,4,64:
     block_j: 32
-    block_k: 128
-    warp: 4
-    num_stages: 1
+    block_k: 32
+    warp: 2
+    num_stages: 2
   1024,8,32:
     block_j: 32
-    block_k: 64
+    block_k: 32
     warp: 2
     num_stages: 3
   1024,8,64:
-    block_j: 32
-    block_k: 128
-    warp: 4
-    num_stages: 1
+    block_j: 16
+    block_k: 32
+    warp: 2
+    num_stages: 3
