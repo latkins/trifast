@@ -131,7 +131,7 @@ def time_with_timeout(func, timeout_ms, *args, **kwargs):
         return None, None
 
 
-def run_forward(*, q, k, v, b, mask, BLOCK_J, BLOCK_K, WARP, NUM_STAGES, **kwargs):
+def run_forward(*, q, k, v, b, mask, BLOCK_J, BLOCK_K, num_warps, num_stages, **kwargs):
     sm_scale = q.shape[-1] ** -0.5
     # TODO: logic to flatten batch/head dims.
     h, m, n, dim = q.shape
@@ -152,12 +152,12 @@ def run_forward(*, q, k, v, b, mask, BLOCK_J, BLOCK_K, WARP, NUM_STAGES, **kwarg
         mask, mask.stride(0), mask.stride(1),
         neg_inf=torch.finfo(q.dtype).min,
         sm_scale=sm_scale, N=n, DIM=dim,
-        BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K, num_warps=WARP, num_stages=NUM_STAGES
+        BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K, num_warps=num_warps, num_stages=num_stages
     )
 
 
 # Idea is to run each kernel at diff input sizes with different triton compile settings.
-def run_dq(*, q, k, v, b, mask, l, do, d, BLOCK_J, BLOCK_K, WARP, NUM_STAGES, **kwargs):
+def run_dq(*, q, k, v, b, mask, l, do, d, BLOCK_J, BLOCK_K, num_warps, num_stages, **kwargs):
     sm_scale = q.shape[-1] ** -0.5
     # TODO: logic to flatten batch/head dims.
     h, m, n, dim = q.shape
@@ -183,12 +183,12 @@ def run_dq(*, q, k, v, b, mask, l, do, d, BLOCK_J, BLOCK_K, WARP, NUM_STAGES, **
         sm_scale=sm_scale,
         neg_inf=torch.finfo(q.dtype).min,
         H=h, M=n, N=n, DIM=dim,
-        BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K, num_warps=WARP, num_stages=NUM_STAGES
+        BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K, num_warps=num_warps, num_stages=num_stages
     )
 
 
 def run_dkv(
-    *, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, WARP, NUM_STAGES, **kwargs
+    *, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, num_warps, num_stages, **kwargs
 ):
     dk = torch.zeros_like(k)
     dv = torch.zeros_like(v)
@@ -215,11 +215,11 @@ def run_dkv(
         sm_scale=sm_scale,
         neg_inf=torch.finfo(q.dtype).min,
         H=h, M=n, N=n, DIM=dim,
-        BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K, num_warps=WARP, num_stages=NUM_STAGES
+        BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K, num_warps=num_warps, num_stages=num_stages
     )
 
 
-def run_db(*, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, WARP, NUM_STAGES, **kwargs):
+def run_db(*, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, num_warps, num_stages, **kwargs):
     db = torch.zeros_like(b).to(torch.float32)
     dmask = torch.zeros_like(mask)
 
@@ -243,7 +243,7 @@ def run_db(*, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, WARP, NUM_STAGES, **
         neg_inf=torch.finfo(q.dtype).min,
         H=h, M=n, N=n, DIM=dim,
         BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K,
-        num_warps=WARP, num_stages=NUM_STAGES,
+        num_warps=num_warps, num_stages=num_stages,
     )
 
 
@@ -273,13 +273,13 @@ def tune(reps, fn, name, root):
                 n, h, d = q.shape[1], q.shape[0], q.shape[-1]
                 # just so it doesn't take too long, keep track of speed for each setting.
                 durs = []
-                for block_j in tqdm(blocks_j, leave=False, desc="block_j"):
-                    if block_j >= (2 * n):
+                for BLOCK_J in tqdm(blocks_j, leave=False, desc="block_j"):
+                    if BLOCK_J >= (2 * n):
                         continue
-                    for block_k in tqdm(blocks_k, leave=False, desc="block_k"):
-                        if block_k >= (2 * n):
+                    for BLOCK_K in tqdm(blocks_k, leave=False, desc="block_k"):
+                        if BLOCK_K >= (2 * n):
                             continue
-                        for warp in tqdm(warps, leave=False, desc="warp"):
+                        for num_warps in tqdm(warps, leave=False, desc="warp"):
                             for num_stage in tqdm(
                                 num_stages, leave=False, desc="num_stage"
                             ):
@@ -287,10 +287,10 @@ def tune(reps, fn, name, root):
                                 try:
                                     fn(
                                         **data,
-                                        BLOCK_J=block_j,
-                                        BLOCK_K=block_k,
-                                        WARP=warp,
-                                        NUM_STAGES=num_stage,
+                                        BLOCK_J=BLOCK_J,
+                                        BLOCK_K=BLOCK_K,
+                                        num_warps=num_warps,
+                                        num_stages=num_stage,
                                     )
                                 except triton.runtime.errors.OutOfResources:
                                     # print(e)
@@ -311,10 +311,10 @@ def tune(reps, fn, name, root):
                                         fn,
                                         timeout_ms,
                                         **data,
-                                        BLOCK_J=block_j,
-                                        BLOCK_K=block_k,
-                                        WARP=warp,
-                                        NUM_STAGES=num_stage,
+                                        BLOCK_J=BLOCK_J,
+                                        BLOCK_K=BLOCK_K,
+                                        num_warps=num_warps,
+                                        num_stages=num_stage,
                                     )
 
                                     if cuda_dur is None:
@@ -324,9 +324,9 @@ def tune(reps, fn, name, root):
 
                                     rows.append(
                                         {
-                                            "BLOCK_J": block_j,
-                                            "BLOCK_K": block_k,
-                                            "num_warps": warp,
+                                            "BLOCK_J": BLOCK_J,
+                                            "BLOCK_K": BLOCK_K,
+                                            "num_warps": num_warps,
                                             "num_stages": num_stage,
                                             "n": q.shape[1],
                                             "h": q.shape[0],
