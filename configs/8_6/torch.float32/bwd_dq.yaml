@@ -1,0 +1,257 @@
+grid_points:
+  n:
+  - 32
+  - 64
+  - 128
+  - 256
+  - 512
+  - 1024
+  h:
+  - 1
+  - 2
+  - 4
+  - 8
+  d:
+  - 32
+  - 64
+settings:
+  32,1,32:
+    BLOCK_J: 32
+    BLOCK_K: 32
+    warp: 1
+    num_stages: 3
+  32,1,64:
+    BLOCK_J: 32
+    BLOCK_K: 16
+    warp: 8
+    num_stages: 1
+  32,2,32:
+    BLOCK_J: 32
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 3
+  32,2,64:
+    BLOCK_J: 32
+    BLOCK_K: 32
+    warp: 2
+    num_stages: 3
+  32,4,32:
+    BLOCK_J: 32
+    BLOCK_K: 16
+    warp: 2
+    num_stages: 6
+  32,4,64:
+    BLOCK_J: 32
+    BLOCK_K: 32
+    warp: 8
+    num_stages: 3
+  32,8,32:
+    BLOCK_J: 16
+    BLOCK_K: 16
+    warp: 2
+    num_stages: 2
+  32,8,64:
+    BLOCK_J: 32
+    BLOCK_K: 16
+    warp: 4
+    num_stages: 2
+  64,1,32:
+    BLOCK_J: 32
+    BLOCK_K: 16
+    warp: 2
+    num_stages: 4
+  64,1,64:
+    BLOCK_J: 32
+    BLOCK_K: 64
+    warp: 8
+    num_stages: 2
+  64,2,32:
+    BLOCK_J: 64
+    BLOCK_K: 64
+    warp: 2
+    num_stages: 1
+  64,2,64:
+    BLOCK_J: 32
+    BLOCK_K: 64
+    warp: 4
+    num_stages: 1
+  64,4,32:
+    BLOCK_J: 16
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 3
+  64,4,64:
+    BLOCK_J: 32
+    BLOCK_K: 16
+    warp: 4
+    num_stages: 4
+  64,8,32:
+    BLOCK_J: 32
+    BLOCK_K: 32
+    warp: 8
+    num_stages: 4
+  64,8,64:
+    BLOCK_J: 32
+    BLOCK_K: 32
+    warp: 8
+    num_stages: 3
+  128,1,32:
+    BLOCK_J: 16
+    BLOCK_K: 128
+    warp: 4
+    num_stages: 1
+  128,1,64:
+    BLOCK_J: 128
+    BLOCK_K: 32
+    warp: 8
+    num_stages: 1
+  128,2,32:
+    BLOCK_J: 32
+    BLOCK_K: 128
+    warp: 4
+    num_stages: 1
+  128,2,64:
+    BLOCK_J: 64
+    BLOCK_K: 64
+    warp: 4
+    num_stages: 1
+  128,4,32:
+    BLOCK_J: 128
+    BLOCK_K: 16
+    warp: 8
+    num_stages: 3
+  128,4,64:
+    BLOCK_J: 16
+    BLOCK_K: 32
+    warp: 2
+    num_stages: 1
+  128,8,32:
+    BLOCK_J: 16
+    BLOCK_K: 32
+    warp: 2
+    num_stages: 1
+  128,8,64:
+    BLOCK_J: 32
+    BLOCK_K: 16
+    warp: 2
+    num_stages: 1
+  256,1,32:
+    BLOCK_J: 16
+    BLOCK_K: 32
+    warp: 2
+    num_stages: 1
+  256,1,64:
+    BLOCK_J: 64
+    BLOCK_K: 16
+    warp: 4
+    num_stages: 1
+  256,2,32:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  256,2,64:
+    BLOCK_J: 32
+    BLOCK_K: 64
+    warp: 4
+    num_stages: 1
+  256,4,32:
+    BLOCK_J: 128
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  256,4,64:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  256,8,32:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  256,8,64:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  512,1,32:
+    BLOCK_J: 128
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  512,1,64:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  512,2,32:
+    BLOCK_J: 64
+    BLOCK_K: 16
+    warp: 4
+    num_stages: 1
+  512,2,64:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  512,4,32:
+    BLOCK_J: 128
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  512,4,64:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  512,8,32:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  512,8,64:
+    BLOCK_J: 64
+    BLOCK_K: 16
+    warp: 4
+    num_stages: 1
+  1024,1,32:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  1024,1,64:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  1024,2,32:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  1024,2,64:
+    BLOCK_J: 64
+    BLOCK_K: 16
+    warp: 4
+    num_stages: 1
+  1024,4,32:
+    BLOCK_J: 128
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  1024,4,64:
+    BLOCK_J: 32
+    BLOCK_K: 16
+    warp: 2
+    num_stages: 1
+  1024,8,32:
+    BLOCK_J: 128
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1
+  1024,8,64:
+    BLOCK_J: 64
+    BLOCK_K: 32
+    warp: 4
+    num_stages: 1

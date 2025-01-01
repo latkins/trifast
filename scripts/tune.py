@@ -82,7 +82,10 @@ def gen_data(
     random.seed(0)
     for h in heads:
         for d in dims:
-            yield get_tensors(n, d, h, scale, device, dtype)
+            try:
+                yield get_tensors(n, d, h, scale, device, dtype)
+            except torch.OutOfMemoryError:
+                continue
 
 
 def time_with_timeout(func, timeout_ms, *args, **kwargs):
@@ -249,103 +252,122 @@ def tune(reps, fn, name, root):
     blocks_k = [16, 32, 64, 128]
     warps = [1, 2, 4, 8]
     num_stages = [1, 2, 3, 4, 6]
-    for n in tqdm(gen_ns(16, 1024, num_samples=1), desc="n"):
+    for dtype in [torch.float32, torch.bfloat16, torch.float16]:
+        print(dtype)
         rows = []
-        for data in tqdm(
-            gen_data(
-                n,
-                [1, 2, 4, 8],
-                [32, 64],
-                torch.bfloat16,
-                "cuda",
-                1.0,
-            ),
-            leave=False,
-            desc="data",
-        ):
-            q = data["q"]
-            n, h, d = q.shape[1], q.shape[0], q.shape[-1]
-            # just so it doesn't take too long, keep track of speed for each setting.
-            durs = []
-            for block_j in tqdm(blocks_j, leave=False, desc="block_j"):
-                for block_k in tqdm(blocks_k, leave=False, desc="block_k"):
-                    for warp in tqdm(warps, leave=False, desc="warp"):
-                        for num_stage in tqdm(
-                            num_stages, leave=False, desc="num_stage"
-                        ):
-                            # make sure we have compiled
-                            try:
-                                fn(
-                                    **data,
-                                    BLOCK_J=block_j,
-                                    BLOCK_K=block_k,
-                                    WARP=warp,
-                                    NUM_STAGES=num_stage,
-                                )
-                            except triton.runtime.errors.OutOfResources as e:
-                                print(e)
-                                break
-                            except Exception as e:
-                                print(e)
-                                continue
-
-                            torch.cuda.synchronize()
-                            start_event = torch.cuda.Event(enable_timing=True)
-                            end_event = torch.cuda.Event(enable_timing=True)
-
-                            if len(durs) > 0:
-                                timeout_ms = sorted(durs)[0]
-                            else:
-                                timeout_ms = 1000000
-
-                            stream = torch.cuda.Stream()
-                            for _ in range(reps):
-                                start_event.record(stream)
-                                cuda_dur, wall_dur = time_with_timeout(
-                                    fn,
-                                    timeout_ms,
-                                    **data,
-                                    BLOCK_J=block_j,
-                                    BLOCK_K=block_k,
-                                    WARP=warp,
-                                    NUM_STAGES=num_stage,
-                                )
-
-                                if cuda_dur is None:
+        for n in tqdm(gen_ns(16, 1024, num_samples=1), desc="n"):
+            torch.cuda.empty_cache()
+            for data in tqdm(
+                gen_data(
+                    n,
+                    [1, 2, 4, 8],
+                    [32, 64],
+                    dtype,
+                    "cuda",
+                    1.0,
+                ),
+                leave=False,
+                desc="data",
+            ):
+                q = data["q"]
+                n, h, d = q.shape[1], q.shape[0], q.shape[-1]
+                # just so it doesn't take too long, keep track of speed for each setting.
+                durs = []
+                for block_j in tqdm(blocks_j, leave=False, desc="block_j"):
+                    if block_j >= (2 * n):
+                        continue
+                    for block_k in tqdm(blocks_k, leave=False, desc="block_k"):
+                        if block_k >= (2 * n):
+                            continue
+                        for warp in tqdm(warps, leave=False, desc="warp"):
+                            for num_stage in tqdm(
+                                num_stages, leave=False, desc="num_stage"
+                            ):
+                                # make sure we have compiled
+                                try:
+                                    fn(
+                                        **data,
+                                        BLOCK_J=block_j,
+                                        BLOCK_K=block_k,
+                                        WARP=warp,
+                                        NUM_STAGES=num_stage,
+                                    )
+                                except triton.runtime.errors.OutOfResources:
+                                    # print(e)
+                                    break
+                                except Exception:
+                                    # print(e)
                                     continue
 
-                                durs.append(wall_dur)
+                                torch.cuda.synchronize()
 
-                                rows.append(
-                                    {
-                                        "block_j": block_j,
-                                        "block_k": block_k,
-                                        "warp": warp,
-                                        "num_stages": num_stage,
-                                        "n": q.shape[1],
-                                        "h": q.shape[0],
-                                        "d": q.shape[-1],
-                                        "cuda_time": cuda_dur,
-                                        "wall_time": wall_dur,
-                                        "dtype": str(q.dtype),
-                                        "device_name": device_name,
-                                        "device_cap": device_cap,
-                                        "method": name,
-                                    }
-                                )
-            df = pd.DataFrame(rows)
-            root = Path(__file__).parent.parent / "tune"
-            root.mkdir(exist_ok=True)
-            path = root / f"{device_name}_{n}_{h}_{d}_{name}.parquet"
+                                if len(durs) > 0:
+                                    timeout_ms = sorted(durs)[0]
+                                else:
+                                    timeout_ms = 1000000
 
-            df.to_parquet(str(path))
+                                for _ in range(reps):
+                                    cuda_dur, wall_dur = time_with_timeout(
+                                        fn,
+                                        timeout_ms,
+                                        **data,
+                                        BLOCK_J=block_j,
+                                        BLOCK_K=block_k,
+                                        WARP=warp,
+                                        NUM_STAGES=num_stage,
+                                    )
+
+                                    if cuda_dur is None:
+                                        continue
+
+                                    durs.append(wall_dur)
+
+                                    rows.append(
+                                        {
+                                            "BLOCK_J": block_j,
+                                            "BLOCK_K": block_k,
+                                            "num_warps": warp,
+                                            "num_stages": num_stage,
+                                            "n": q.shape[1],
+                                            "h": q.shape[0],
+                                            "d": q.shape[-1],
+                                            "cuda_time": cuda_dur,
+                                            "wall_time": wall_dur,
+                                            "dtype": str(q.dtype),
+                                            "device_name": device_name,
+                                            "device_cap": device_cap,
+                                            "method": name,
+                                        }
+                                    )
+        df = pd.DataFrame(rows)
+        df_path = (
+            root
+            / f"{device_cap[0]}_{device_cap[1]}"
+            / str(dtype)
+            / f"{device_name}_{dtype}_{name}.parquet"
+        )
+        df_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(str(df_path))
+
+        cfg_lookup = create_config_lookup(df)
+
+        cfg_dir = (
+            root.parent
+            / "configs"
+            / f"{device_cap[0]}_{device_cap[1]}"
+            / str(dtype)
+        )
+        cfg_dir.mkdir(exist_ok=True, parents=True)
+
+        with (cfg_dir / f"{name}.yaml").open("w") as f:
+            f.write(cfg_lookup)
 
 
 def create_config_lookup(df: pd.DataFrame) -> str:
     """Create grid configuration from DataFrame."""
     # Get mean cuda_time for each configuration
     mean_times = (
-        df.groupby(["n", "h", "d", "block_j", "block_k", "warp", "num_stages"])[
+        df.groupby(["n", "h", "d", "BLOCK_J", "BLOCK_K", "num_warps", "num_stages"])[
             "cuda_time"
         ]
         .mean()
@@ -369,9 +391,9 @@ def create_config_lookup(df: pd.DataFrame) -> str:
     # Store best parameters for each n,h,d point
     for _, row in best_params.iterrows():
         grid["settings"][f"{int(row['n'])},{int(row['h'])},{int(row['d'])}"] = {
-            "block_j": int(row["block_j"]),
-            "block_k": int(row["block_k"]),
-            "warp": int(row["warp"]),
+            "BLOCK_J": int(row["BLOCK_J"]),
+            "BLOCK_K": int(row["BLOCK_K"]),
+            "warp": int(row["num_warps"]),
             "num_stages": int(row["num_stages"]),
         }
 
@@ -379,32 +401,11 @@ def create_config_lookup(df: pd.DataFrame) -> str:
 
 
 root = Path(__file__).parent.parent / "tune"
-root.mkdir(exist_ok=True)
-cfg_dir = root.parent / "configs"
-cfg_dir.mkdir(exist_ok=True)
 
 tune(reps=5, fn=run_forward, name="fwd", root=root)
-df = pd.read_parquet(root)
-fwd_yaml = create_config_lookup(df[df["method"] == "fwd"])
-with open(cfg_dir / "fwd.yaml", "w") as f:
-    f.write(fwd_yaml)
 
 tune(reps=5, fn=run_dkv, name="bwd_dkv", root=root)
-df = pd.read_parquet(root)
-bwd_dkv_yaml = create_config_lookup(df[df["method"] == "bwd_dkv"])
-with open(cfg_dir / "bwd_dkv.yaml", "w") as f:
-    f.write(bwd_dkv_yaml)
 
 tune(reps=5, fn=run_db, name="bwd_db", root=root)
-df = pd.read_parquet(root)
-bwd_db_yaml = create_config_lookup(df[df["method"] == "bwd_db"])
-with open(cfg_dir / "bwd_db.yaml", "w") as f:
-    f.write(bwd_db_yaml)
 
 tune(reps=5, fn=run_dq, name="bwd_dq", root=root)
-df = pd.read_parquet(root)
-bwd_dq_yaml = create_config_lookup(df[df["method"] == "bwd_dq"])
-with open(cfg_dir / "bwd_dq.yaml", "w") as f:
-    f.write(bwd_dq_yaml)
-
-
