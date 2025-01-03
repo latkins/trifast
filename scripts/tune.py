@@ -2,9 +2,9 @@ import triton
 import torch
 from trifast.triton import (
     _fwd,
-    _bwd_q_kernel,
-    _bwd_kv_kernel,
-    _bwd_b_kernel,
+    _bwd_q,
+    _bwd_kv,
+    _bwd_b,
 )
 import random
 from tqdm import tqdm
@@ -142,7 +142,7 @@ def run_forward(*, q, k, v, b, mask, BLOCK_J, BLOCK_K, num_warps, num_stages, **
     l = torch.zeros((h, n, n), device=q.device, dtype=torch.float32)
 
     # fmt: off
-    kernel = _fwd[grid](
+    kernel = _fwd.__wraped__[grid](
         o, o.stride(0), o.stride(1), o.stride(2), o.stride(3),
         l, l.stride(0), l.stride(1), l.stride(2),
         q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
@@ -170,7 +170,7 @@ def run_dq(*, q, k, v, b, mask, l, do, d, BLOCK_J, BLOCK_K, num_warps, num_stage
 
     q_grid = lambda args: (triton.cdiv(n, BLOCK_J), n, h)
     # fmt: off
-    _bwd_q_kernel[q_grid](
+    _bwd_q.__wrapped__[q_grid](
         d, d.stride(0), d.stride(1), d.stride(2),
         q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
         k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
@@ -201,7 +201,7 @@ def run_dkv(
 
     grid = lambda args: (triton.cdiv(n, BLOCK_K), n, h)
     # fmt: off
-    _bwd_kv_kernel[grid](
+    _bwd_kv.__wrapped__[grid](
         d, d.stride(0), d.stride(1), d.stride(2),
         q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
         k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
@@ -229,7 +229,7 @@ def run_db(*, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, num_warps, num_stage
 
     grid = (triton.cdiv(n, BLOCK_J), triton.cdiv(n, BLOCK_K), h)
     # fmt: off
-    _bwd_b_kernel[grid](
+    _bwd_b.__wrapped__[grid](
         d, d.stride(0), d.stride(1), d.stride(2),
         q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
         k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
@@ -402,10 +402,10 @@ def create_config_lookup(df: pd.DataFrame) -> str:
 
 root = Path(__file__).parent.parent / "tune"
 
-tune(reps=5, fn=run_forward, name="fwd", root=root)
+tune(reps=5, fn=run_forward, name="_fwd", root=root)
 
-tune(reps=5, fn=run_dkv, name="bwd_dkv", root=root)
+tune(reps=5, fn=run_dkv, name="_bwd_kv", root=root)
 
-tune(reps=5, fn=run_db, name="bwd_db", root=root)
+tune(reps=5, fn=run_db, name="_bwd_b", root=root)
 
-tune(reps=5, fn=run_dq, name="bwd_dq", root=root)
+tune(reps=5, fn=run_dq, name="_bwd_q", root=root)

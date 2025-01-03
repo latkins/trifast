@@ -1,8 +1,61 @@
-import yaml
-from functools import lru_cache
-from bisect import bisect_right
 from pathlib import Path
+import triton
+import yaml
+from bisect import bisect_right
 import torch
+import logging
+from triton.runtime.jit import KernelInterface
+
+logger = logging.getLogger(__name__)
+
+
+class ConfigLookup(KernelInterface):
+    # TODO: This should probably also generate the tuned kernels?
+    def __init__(self, fn, key_args, cfg_dir: Path):
+        self.fn = fn
+        self.param_lookup = ParamLookup.from_folder(cfg_dir, f"{fn.__name__}.yaml")
+        self.key_args = key_args
+        self.cache = {}
+
+    def run(self, *args, **kwargs):
+        key_values = []
+        arg_dict = {**dict(zip(self.fn.arg_names, args)), **kwargs}
+
+        dtype = None
+        for key in self.key_args:
+            if key in arg_dict:
+                val = arg_dict[key]
+                if hasattr(val, "dtype"):
+                    key_values.append(str(val.dtype))
+                    dtype = val.dtype
+                else:
+                    key_values.append(val)
+        cache_key = tuple(key_values)
+
+        if cache_key not in self.cache:
+            n = arg_dict["N"]
+            h = arg_dict["H"]
+            d = arg_dict["DIM"]
+            config = self.param_lookup[dtype].get_parameters(n, h, d)
+            self.cache[cache_key] = config
+
+        while True:
+            try:
+                config = self.cache[cache_key]
+                result = self.fn.run(*args, **kwargs, **config)
+                return result
+            except triton.OutOfResources:
+                new_stages = max(1, config.get("num_stages", 2) - 1)
+                self.cache[cache_key] = {**config, "num_stages": new_stages}
+                if new_stages == 1:
+                    raise
+
+
+def tuned_lookup(key, config_dir):
+    def decorator(fn):
+        return ConfigLookup(fn, key, config_dir)
+
+    return decorator
 
 
 class DtypeParamLookup:
@@ -32,11 +85,12 @@ class DtypeParamLookup:
             h_idx = self.h_vals.index(h)
             self.params[n_idx][d_idx][h_idx] = params
 
-    @lru_cache(maxsize=128)
     def get_parameters(self, n: float, h: float, d: float) -> tuple[int, int, int]:
+        # e.g. get the largest index into n_vals st the value is <= n
         n_idx = min(bisect_right(self.n_vals, n), len(self.n_vals)) - 1
         d_idx = min(bisect_right(self.d_vals, d), len(self.d_vals)) - 1
         h_idx = min(bisect_right(self.h_vals, h), len(self.h_vals)) - 1
+
         return self.params[n_idx][d_idx][h_idx]
 
 

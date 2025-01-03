@@ -45,8 +45,16 @@ def attention_reference(
     mask: Bool[torch.Tensor, "... n n"],
     upcast: bool = True,
 ) -> Float[torch.Tensor, "... h n n d"]:
+    input_dtype = q.dtype
     if upcast:
         q, k, v, bias = [t.to(torch.float32) for t in (q, k, v, bias)]
+
+        torch.backends.cuda.matmul.allow_tf32 = False
+        torch.backends.cudnn.allow_tf32 = False
+    else:
+        torch.set_float32_matmul_precision("medium")
+        # torch.backends.cuda.matmul.allow_tf32 = True
+        # torch.backends.cudnn.allow_tf32 = True
 
     mask_bias = neg_inf(q.dtype) * (mask).to(q.dtype)
     sm_scale = q.shape[-1] ** -0.5
@@ -68,7 +76,7 @@ def attention_reference(
 
     o = rearrange(a_v, "... () i h j d -> ... h i j d")
 
-    return o
+    return o.to(input_dtype)
 
 
 def triangle_self_attention_ds4s(

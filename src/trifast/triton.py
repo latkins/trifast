@@ -1,8 +1,15 @@
 import triton
 import triton.testing
 import triton.language as tl
+from trifast.compile_helpers import tuned_lookup
+from pathlib import Path
+
+cfg_dir = Path(__file__).parent.parent.parent / "configs"
+
+
 
 # fmt: off
+@tuned_lookup(["N", "H", "DIM", "q_ptr"], cfg_dir)
 @triton.jit
 def _fwd(
     o_ptr, stride_oh, stride_om, stride_on, stride_od,
@@ -14,7 +21,7 @@ def _fwd(
     mask_ptr, stride_maskm, stride_maskn,
     sm_scale,
     neg_inf,
-    N: tl.constexpr, DIM: tl.constexpr,
+    N, H, DIM: tl.constexpr,
     BLOCK_J: tl.constexpr, BLOCK_K: tl.constexpr,
 ):
     input_dtype = q_ptr.dtype.element_ty
@@ -122,7 +129,7 @@ def _fwd(
 def _bwd_preprocess(o_ptr, stride_oh, stride_oi, stride_oj, stride_od,
                     do_ptr, stride_doh, stride_doi, stride_doj, stride_dod,
                     d_ptr, stride_dh, stride_di, stride_dj,
-                    N: tl.constexpr, DIM: tl.constexpr,
+                    N, H, DIM: tl.constexpr,
                     BLOCK_J: tl.constexpr,
                     ):
 
@@ -170,8 +177,9 @@ def _bwd_preprocess(o_ptr, stride_oh, stride_oi, stride_oj, stride_od,
     tl.store(d_block_ptr, vals.to(tl.float32), boundary_check=(0,))
 
 # fmt: off
+@tuned_lookup(["N", "H", "DIM", "q_ptr"], cfg_dir)
 @triton.jit
-def _bwd_kv_kernel(
+def _bwd_kv(
     d_ptr, stride_dh, stride_dm, stride_dn,
     q_ptr, stride_qh, stride_qm, stride_qn, stride_qd,
     k_ptr, stride_kh, stride_km, stride_kn, stride_kd,
@@ -184,8 +192,8 @@ def _bwd_kv_kernel(
     dv_ptr, stride_dvh, stride_dvm, stride_dvn, stride_dvd,
     sm_scale,
     neg_inf,
-    H, M, N,
-    BLOCK_J: tl.constexpr, DIM: tl.constexpr, BLOCK_K: tl.constexpr,
+    N, H, DIM: tl.constexpr,
+    BLOCK_J: tl.constexpr, BLOCK_K: tl.constexpr,
 ):
     input_dtype = q_ptr.dtype.element_ty
 
@@ -294,8 +302,9 @@ def _bwd_kv_kernel(
 
 
 # fmt: off
+@tuned_lookup(["N", "H", "DIM", "q_ptr"], cfg_dir)
 @triton.jit
-def _bwd_q_kernel(
+def _bwd_q(
     d_ptr, stride_dh, stride_dm, stride_dn,
     q_ptr, stride_qh, stride_qm, stride_qn, stride_qd,
     k_ptr, stride_kh, stride_km, stride_kn, stride_kd,
@@ -307,8 +316,8 @@ def _bwd_q_kernel(
     dq_ptr, stride_dqh, stride_dqm, stride_dqn, stride_dqd,
     sm_scale,
     neg_inf,
-    H, M, N,
-    BLOCK_J: tl.constexpr, DIM: tl.constexpr, BLOCK_K: tl.constexpr,
+    N, H, DIM: tl.constexpr,
+    BLOCK_J: tl.constexpr,  BLOCK_K: tl.constexpr,
 ):
     input_dtype = q_ptr.dtype.element_ty
 
@@ -396,8 +405,9 @@ def _bwd_q_kernel(
     tl.store(dq_ptrs, dq_block.to(input_dtype), mask=mask_j[:, None])
 
 # fmt: off
+@tuned_lookup(["N", "H", "DIM", "q_ptr"], cfg_dir)
 @triton.jit
-def _bwd_b_kernel(
+def _bwd_b(
     d_ptr, stride_dh, stride_dm, stride_dn,
     q_ptr, stride_qh, stride_qm, stride_qn, stride_qd,
     k_ptr, stride_kh, stride_km, stride_kn, stride_kd,
@@ -409,8 +419,8 @@ def _bwd_b_kernel(
     db_ptr, stride_dbh, stride_dbm, stride_dbn,
     sm_scale,
     neg_inf,
-    H, M, N,
-    BLOCK_J: tl.constexpr, DIM: tl.constexpr, BLOCK_K: tl.constexpr,
+    H, N, DIM: tl.constexpr,
+    BLOCK_J: tl.constexpr, BLOCK_K: tl.constexpr,
 ):
     input_dtype = q_ptr.dtype.element_ty
     BLOCK_I: tl.constexpr = 1
