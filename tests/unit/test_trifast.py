@@ -1,8 +1,8 @@
 import torch
 import pytest
 from trifast.torch import triangle_attention
-from trifast.equiv import attention_reference, disable_tf32, enable_tf32
-from trifast.utils import gen_tensors, clone_and_clear_grad
+from trifast.equiv import attention_reference
+from trifast.utils import gen_tensors, clone_and_clear_grad, disable_tf32, enable_tf32
 
 from tests.utils import set_seed
 

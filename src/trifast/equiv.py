@@ -1,4 +1,3 @@
-from functools import wraps
 import torch
 from jaxtyping import Bool, Float
 
@@ -6,48 +5,6 @@ import math
 from einops import einsum, rearrange
 
 from deepspeed.ops.deepspeed4science import DS4Sci_EvoformerAttention
-
-
-def disable_tf32(fn):
-    @wraps(fn)
-    def wrapped(*args, **kwargs):
-        cuda, cudnn = (
-            torch.backends.cuda.matmul.allow_tf32,
-            torch.backends.cudnn.allow_tf32,
-        )
-        torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32 = (
-            False,
-            False,
-        )
-        try:
-            return fn(*args, **kwargs)
-        finally:
-            torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32 = (
-                cuda,
-                cudnn,
-            )
-
-    return wrapped
-
-def enable_tf32(fn):
-    @wraps(fn)
-    def wrapped(*args, **kwargs):
-        cuda, cudnn = (
-            torch.backends.cuda.matmul.allow_tf32,
-            torch.backends.cudnn.allow_tf32,
-        )
-        torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32 = (
-            True,
-            True,
-        )
-        try:
-            return fn(*args, **kwargs)
-        finally:
-            torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32 = (
-                cuda,
-                cudnn,
-            )
-    return wrapped
 
 
 def neg_inf(dtype) -> float:
