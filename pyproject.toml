@@ -20,7 +20,6 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "pytest>=8.3.4",
-    "hypothesis>=6.122.3",
 ]
 benchmark = [
     "deepspeed>=0.16.0",
