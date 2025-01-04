@@ -157,7 +157,9 @@ def run_forward(*, q, k, v, b, mask, BLOCK_J, BLOCK_K, num_warps, num_stages, **
 
 
 # Idea is to run each kernel at diff input sizes with different triton compile settings.
-def run_dq(*, q, k, v, b, mask, l, do, d, BLOCK_J, BLOCK_K, num_warps, num_stages, **kwargs):
+def run_dq(
+    *, q, k, v, b, mask, l, do, d, BLOCK_J, BLOCK_K, num_warps, num_stages, **kwargs
+):
     sm_scale = q.shape[-1] ** -0.5
     # TODO: logic to flatten batch/head dims.
     h, m, n, dim = q.shape
@@ -182,7 +184,7 @@ def run_dq(*, q, k, v, b, mask, l, do, d, BLOCK_J, BLOCK_K, num_warps, num_stage
         dq, dq.stride(0), dq.stride(1), dq.stride(2), dq.stride(3),
         sm_scale=sm_scale,
         neg_inf=torch.finfo(q.dtype).min,
-        H=h, M=n, N=n, DIM=dim,
+        H=h, N=n, DIM=dim,
         BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K, num_warps=num_warps, num_stages=num_stages
     )
 
@@ -214,12 +216,14 @@ def run_dkv(
         dv, dv.stride(0), dv.stride(1), dv.stride(2), dv.stride(3),
         sm_scale=sm_scale,
         neg_inf=torch.finfo(q.dtype).min,
-        H=h, M=n, N=n, DIM=dim,
+        H=h, N=n, DIM=dim,
         BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K, num_warps=num_warps, num_stages=num_stages
     )
 
 
-def run_db(*, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, num_warps, num_stages, **kwargs):
+def run_db(
+    *, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, num_warps, num_stages, **kwargs
+):
     db = torch.zeros_like(b).to(torch.float32)
     dmask = torch.zeros_like(mask)
 
@@ -241,7 +245,7 @@ def run_db(*, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, num_warps, num_stage
         db, db.stride(0), db.stride(1), db.stride(2),
         sm_scale=sm_scale,
         neg_inf=torch.finfo(q.dtype).min,
-        H=h, M=n, N=n, DIM=dim,
+        H=h, N=n, DIM=dim,
         BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K,
         num_warps=num_warps, num_stages=num_stages,
     )
@@ -256,7 +260,7 @@ def tune(reps, fn, name, root):
         print(dtype)
         rows = []
         for n in tqdm(gen_ns(16, 1024, num_samples=1), desc="n"):
-            torch.cuda.empty_cache()
+            # torch.cuda.empty_cache()
             for data in tqdm(
                 gen_data(
                     n,
@@ -351,10 +355,7 @@ def tune(reps, fn, name, root):
         cfg_lookup = create_config_lookup(df)
 
         cfg_dir = (
-            root.parent
-            / "configs"
-            / f"{device_cap[0]}_{device_cap[1]}"
-            / str(dtype)
+            root.parent / "configs" / f"{device_cap[0]}_{device_cap[1]}" / str(dtype)
         )
         cfg_dir.mkdir(exist_ok=True, parents=True)
 
@@ -392,7 +393,7 @@ def create_config_lookup(df: pd.DataFrame) -> str:
         grid["settings"][f"{int(row['n'])},{int(row['h'])},{int(row['d'])}"] = {
             "BLOCK_J": int(row["BLOCK_J"]),
             "BLOCK_K": int(row["BLOCK_K"]),
-            "warp": int(row["num_warps"]),
+            "num_warps": int(row["num_warps"]),
             "num_stages": int(row["num_stages"]),
         }
 
@@ -401,10 +402,11 @@ def create_config_lookup(df: pd.DataFrame) -> str:
 
 root = Path(__file__).parent.parent / "tune"
 
-tune(reps=5, fn=run_forward, name="_fwd", root=root)
 
-tune(reps=5, fn=run_dkv, name="_bwd_kv", root=root)
+tune(reps=3, fn=run_dkv, name="_bwd_kv", root=root)
 
-tune(reps=5, fn=run_db, name="_bwd_b", root=root)
+tune(reps=3, fn=run_db, name="_bwd_b", root=root)
 
-tune(reps=5, fn=run_dq, name="_bwd_q", root=root)
+tune(reps=3, fn=run_dq, name="_bwd_q", root=root)
+
+tune(reps=3, fn=run_forward, name="_fwd", root=root)
