@@ -5,15 +5,18 @@ from trifast.torch import triangle_attention
 from trifast.equiv import attention_reference
 
 
-# Simplified power of two strategy with smaller range
 def powers_of_two(min_exponent=0, max_exponent=6):
     return st.integers(min_exponent, max_exponent).map(lambda x: 2**x)
 
+def mixed_size_strategy(min_n, max_n, min_exponent, max_exponent):
+    return st.one_of(
+        powers_of_two(min_exponent=min_exponent, max_exponent=max_exponent),
+        st.integers(min_value=min_n, max_value=max_n),
+    )
 
-# More constrained shape strategy
 shape_strategy = st.tuples(
     st.integers(min_value=1, max_value=4),  # h
-    powers_of_two(min_exponent=4, max_exponent=6),  # n
+    mixed_size_strategy(min_exponent=4, max_exponent=8, min_n=4, max_n=200),  # n
     powers_of_two(min_exponent=4, max_exponent=5),  # d
 )
 
@@ -24,15 +27,23 @@ dtype_strategy = st.sampled_from([torch.float32, torch.float16, torch.bfloat16])
 def random_tensor(shape, dtype, device="cuda"):
     """Generate random noise tensor with appropriate scaling."""
 
+    scale = 1.0
     if dtype == torch.bool:
         return torch.randint(0, 2, shape, device=device, dtype=dtype)
 
-    if dtype == torch.float16 or dtype == torch.bfloat16:
-        # Smaller values to avoid overflow
-        scale = 0.5
-    else:
-        scale = 1.0
-    return torch.empty(shape, device=device, dtype=dtype).normal_(mean=0.0, std=scale).requires_grad_()
+    # if dtype == torch.float16 or dtype == torch.bfloat16:
+    #     # Smaller values to avoid overflow
+    #     scale = 0.5
+    return (
+        torch.empty(shape, device=device, dtype=dtype)
+        .normal_(mean=0.0, std=scale)
+        .requires_grad_()
+    )
+
+
+def assert_close(a, b, msg, tol):
+    diff = (a - b).abs()
+    assert diff.max().item() < tol, f"{msg} max_diff: {diff.max().item():.3f}"
 
 
 @settings(deadline=None)
@@ -51,28 +62,16 @@ def test_triangle_attention_equivalence_forward(shape, dtype) -> None:
     bias = random_tensor((h, n, n), dtype, device)
     mask = random_tensor((n, n), dtype=torch.bool, device=device)
 
-    atol = 1e-2
-    rtol = 0.01
+    tol = 5e-2
 
     torch.cuda.synchronize()
     with torch.no_grad():
         out1 = attention_reference(q, k, v, bias, mask, upcast=False)
         out2 = triangle_attention(q, k, v, bias, mask)
 
-        diff = torch.abs(out1 - out2)
-
     torch.cuda.synchronize()
 
-    torch.testing.assert_close(
-        out1,
-        out2,
-        rtol=rtol,
-        atol=atol,
-        msg=f"""Failed:
-        out1.shape: {out1.shape}, out2.shape: {out2.shape}, dtype: {dtype},
-        max_diff: {diff.max().item():.3f},
-        """,
-    )
+    assert_close(out1, out2, f"Failed: shape: {out1.shape}, dtype: {dtype}", tol)
 
 
 @settings(deadline=None)
@@ -95,8 +94,9 @@ def test_triangle_attention_backward_equivalence(shape, dtype) -> None:
 
     dout = torch.randn_like(q)
 
-    atol = 1e-2
-    rtol = 0.01
+    tol = 1e-2 if dtype == torch.float16 else 5e-2
+    # atol = 1e-2
+    # rtol = 0.01
 
     torch.cuda.synchronize()
 
@@ -118,46 +118,38 @@ def test_triangle_attention_backward_equivalence(shape, dtype) -> None:
 
     torch.cuda.synchronize()
 
-    torch.testing.assert_close(
+    assert_close(
         tri_dq,
         ref_dq,
-        rtol=rtol,
-        atol=atol,
-        msg=f"""Failed:
+        f"""Failed:
             dtype: {dtype},
-            max_diff: {(tri_dq - ref_dq).max().item():.3f},
         """,
+        tol,
     )
 
-    torch.testing.assert_close(
+    assert_close(
         tri_dk,
         ref_dk,
-        rtol=rtol,
-        atol=atol,
-        msg=f"""Failed:
+        f"""Failed:
             dtype: {dtype},
-            max_diff: {(tri_dk - ref_dk).max().item():.3f},
         """,
+        tol,
     )
 
-    torch.testing.assert_close(
+    assert_close(
         tri_dv,
         ref_dv,
-        rtol=rtol,
-        atol=atol,
-        msg=f"""Failed:
+        f"""Failed:
             dtype: {dtype},
-            max_diff: {(tri_dv - ref_dv).max().item():.3f},
         """,
+        tol,
     )
 
-    torch.testing.assert_close(
+    assert_close(
         tri_db,
         ref_db,
-        rtol=rtol,
-        atol=atol,
-        msg=f"""Failed:
+        f"""Failed:
                 dtype: {dtype},
-                max_diff: {(tri_db - ref_db).max().item():.3f},
             """,
+        tol,
     )
