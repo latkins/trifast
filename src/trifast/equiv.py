@@ -1,3 +1,4 @@
+from functools import wraps
 import torch
 from jaxtyping import Bool, Float
 
@@ -5,6 +6,48 @@ import math
 from einops import einsum, rearrange
 
 from deepspeed.ops.deepspeed4science import DS4Sci_EvoformerAttention
+
+
+def disable_tf32(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        cuda, cudnn = (
+            torch.backends.cuda.matmul.allow_tf32,
+            torch.backends.cudnn.allow_tf32,
+        )
+        torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32 = (
+            False,
+            False,
+        )
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32 = (
+                cuda,
+                cudnn,
+            )
+
+    return wrapped
+
+def enable_tf32(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        cuda, cudnn = (
+            torch.backends.cuda.matmul.allow_tf32,
+            torch.backends.cudnn.allow_tf32,
+        )
+        torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32 = (
+            True,
+            True,
+        )
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32 = (
+                cuda,
+                cudnn,
+            )
+    return wrapped
 
 
 def neg_inf(dtype) -> float:
@@ -43,19 +86,7 @@ def attention_reference(
     v: Float[torch.Tensor, "... h n n d"],
     bias: Float[torch.Tensor, "... h n n"],
     mask: Bool[torch.Tensor, "... n n"],
-    upcast: bool = True,
 ) -> Float[torch.Tensor, "... h n n d"]:
-    input_dtype = q.dtype
-    if upcast:
-        q, k, v, bias = [t.to(torch.float32) for t in (q, k, v, bias)]
-
-        torch.backends.cuda.matmul.allow_tf32 = False
-        torch.backends.cudnn.allow_tf32 = False
-    else:
-        torch.set_float32_matmul_precision("medium")
-        # torch.backends.cuda.matmul.allow_tf32 = True
-        # torch.backends.cudnn.allow_tf32 = True
-
     mask_bias = neg_inf(q.dtype) * (mask).to(q.dtype)
     sm_scale = q.shape[-1] ** -0.5
 
@@ -71,12 +102,12 @@ def attention_reference(
     a += mask_bias
     a += bias
 
-    a = torch.softmax(a, dim=-1, dtype=torch.float32 if upcast else q.dtype)
+    a = torch.softmax(a, dim=-1)
     a_v = torch.matmul(a, v)
 
     o = rearrange(a_v, "... () i h j d -> ... h i j d")
 
-    return o.to(input_dtype)
+    return o
 
 
 def triangle_self_attention_ds4s(

@@ -54,7 +54,7 @@ def get_tensors(n: int, d: int, h: int, scale, device="cuda", dtype=torch.bfloat
 
 
 def gen_ns(min_n, max_n, num_samples=5):
-    base_ns = [32, 64, 128, 256, 512, 1024, 2048, 4096]
+    base_ns = [8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]
     base_ns = [b for b in base_ns if min_n <= b <= max_n]
 
     for i in range(1, len(base_ns)):
@@ -142,7 +142,7 @@ def run_forward(*, q, k, v, b, mask, BLOCK_J, BLOCK_K, num_warps, num_stages, **
     l = torch.zeros((h, n, n), device=q.device, dtype=torch.float32)
 
     # fmt: off
-    kernel = _fwd.__wraped__[grid](
+    kernel = _fwd.fn[grid](
         o, o.stride(0), o.stride(1), o.stride(2), o.stride(3),
         l, l.stride(0), l.stride(1), l.stride(2),
         q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
@@ -151,7 +151,7 @@ def run_forward(*, q, k, v, b, mask, BLOCK_J, BLOCK_K, num_warps, num_stages, **
         b, b.stride(0), b.stride(1), b.stride(2),
         mask, mask.stride(0), mask.stride(1),
         neg_inf=torch.finfo(q.dtype).min,
-        sm_scale=sm_scale, N=n, DIM=dim,
+        sm_scale=sm_scale, N=n, DIM=dim, H=h,
         BLOCK_J=BLOCK_J, BLOCK_K=BLOCK_K, num_warps=num_warps, num_stages=num_stages
     )
 
@@ -170,7 +170,7 @@ def run_dq(*, q, k, v, b, mask, l, do, d, BLOCK_J, BLOCK_K, num_warps, num_stage
 
     q_grid = lambda args: (triton.cdiv(n, BLOCK_J), n, h)
     # fmt: off
-    _bwd_q.__wrapped__[q_grid](
+    _bwd_q.fn[q_grid](
         d, d.stride(0), d.stride(1), d.stride(2),
         q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
         k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
@@ -201,7 +201,7 @@ def run_dkv(
 
     grid = lambda args: (triton.cdiv(n, BLOCK_K), n, h)
     # fmt: off
-    _bwd_kv.__wrapped__[grid](
+    _bwd_kv.fn[grid](
         d, d.stride(0), d.stride(1), d.stride(2),
         q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
         k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
@@ -229,7 +229,7 @@ def run_db(*, d, q, k, v, b, l, mask, do, BLOCK_J, BLOCK_K, num_warps, num_stage
 
     grid = (triton.cdiv(n, BLOCK_J), triton.cdiv(n, BLOCK_K), h)
     # fmt: off
-    _bwd_b.__wrapped__[grid](
+    _bwd_b.fn[grid](
         d, d.stride(0), d.stride(1), d.stride(2),
         q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
         k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
@@ -274,10 +274,10 @@ def tune(reps, fn, name, root):
                 # just so it doesn't take too long, keep track of speed for each setting.
                 durs = []
                 for BLOCK_J in tqdm(blocks_j, leave=False, desc="block_j"):
-                    if BLOCK_J >= (2 * n):
+                    if BLOCK_J >= (2 * n) and n > 32:
                         continue
                     for BLOCK_K in tqdm(blocks_k, leave=False, desc="block_k"):
-                        if BLOCK_K >= (2 * n):
+                        if BLOCK_K >= (2 * n) and n > 32:
                             continue
                         for num_warps in tqdm(warps, leave=False, desc="warp"):
                             for num_stage in tqdm(
@@ -293,10 +293,9 @@ def tune(reps, fn, name, root):
                                         num_stages=num_stage,
                                     )
                                 except triton.runtime.errors.OutOfResources:
-                                    # print(e)
                                     break
-                                except Exception:
-                                    # print(e)
+                                except Exception as e:
+                                    print(e)
                                     continue
 
                                 torch.cuda.synchronize()

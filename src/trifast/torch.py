@@ -26,7 +26,7 @@ class _triangle_attention(torch.autograd.Function):
         sm_scale = q.shape[-1] ** -0.5
 
         # TODO: logic to flatten batch/head dims.
-        h, m, n, dim = q.shape
+        h, _, n, dim = q.shape
 
         grid = lambda x: (triton.cdiv(n, x["BLOCK_J"]), n, h)
 
@@ -34,7 +34,7 @@ class _triangle_attention(torch.autograd.Function):
         l = torch.zeros((h, n, n), device=q.device, dtype=torch.float32)
 
         # fmt: off
-        kernel = _fwd[grid](
+        _fwd[grid](
             o, o.stride(0), o.stride(1), o.stride(2), o.stride(3),
             l, l.stride(0), l.stride(1), l.stride(2),
             q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
@@ -44,8 +44,6 @@ class _triangle_attention(torch.autograd.Function):
             mask, mask.stride(0), mask.stride(1),
             neg_inf=torch.finfo(q.dtype).min,
             sm_scale=sm_scale, N=n, H=h, DIM=dim,
-            # BLOCK_J=params["BLOCK_J"], BLOCK_K=params["BLOCK_K"],
-            # num_warps=params["num_warps"], num_stages=params["num_stages"],
         )
         ctx.save_for_backward(q, k, v, b, mask, o, l)
         ctx.grid = grid
@@ -54,7 +52,17 @@ class _triangle_attention(torch.autograd.Function):
         return o
 
     @staticmethod
-    def backward(ctx, do):
+    def backward(
+        ctx, *grad_output: Float[torch.Tensor, "... h n n d"]
+    ) -> tuple[
+        Float[torch.Tensor, "... h n n d"],  # dq
+        Float[torch.Tensor, "... h n n d"],  # dk
+        Float[torch.Tensor, "... h n n d"],  # dv
+        Float[torch.Tensor, "... n n h"],  # db
+        Bool[torch.Tensor, "... n n"],  # dmask
+    ]:
+        # There is only one gradient.
+        do = grad_output[0]
         q, k, v, b, mask, o, l = ctx.saved_tensors
 
         dq = torch.zeros_like(q)
@@ -63,7 +71,7 @@ class _triangle_attention(torch.autograd.Function):
         db = torch.zeros_like(b)
         dmask = torch.zeros_like(mask)
 
-        h, m, n, dim = q.shape
+        h, _, n, dim = q.shape
 
         # e.g. [h,n,n]
         # we need d_{hij} = (o_{hij} \dot do_{hij}) to simplify gradient computation, so pre-compute
@@ -96,9 +104,8 @@ class _triangle_attention(torch.autograd.Function):
             sm_scale=ctx.sm_scale,
             neg_inf=torch.finfo(q.dtype).min,
             H=h, N=n, DIM=dim,
-            # BLOCK_K=params["BLOCK_K"], BLOCK_J=params["BLOCK_J"],
-            # num_warps=params["num_warps"], num_stages=params["num_stages"],
         )
+        # fmt: on
 
         q_grid = lambda x: (triton.cdiv(n, x["BLOCK_J"]), n, h)
         # fmt: off
@@ -115,12 +122,16 @@ class _triangle_attention(torch.autograd.Function):
             sm_scale=ctx.sm_scale,
             neg_inf=torch.finfo(q.dtype).min,
             H=h, N=n, DIM=dim,
-            # BLOCK_J=params["BLOCK_J"], BLOCK_K=params["BLOCK_K"],
-            # num_warps=params["num_warps"], num_stages=params["num_stages"],
+        )
+        # fmt: on
+
+        b_grid = lambda x: (
+            triton.cdiv(n, x["BLOCK_J"]),
+            triton.cdiv(n, x["BLOCK_K"]),
+            h,
         )
 
-        b_grid = lambda x: (triton.cdiv(n, x['BLOCK_J']), triton.cdiv(n, x['BLOCK_K']), h)
-
+        # fmt: off
         _bwd_b[b_grid](
             d, d.stride(0), d.stride(1), d.stride(2),
             q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
@@ -134,10 +145,8 @@ class _triangle_attention(torch.autograd.Function):
             sm_scale=ctx.sm_scale,
             neg_inf=torch.finfo(q.dtype).min,
             H=h, N=n, DIM=dim,
-            # BLOCK_J=params['BLOCK_J'], BLOCK_K=params['BLOCK_K'],
-            # num_warps=params['num_warps'], num_stages=params['num_stages'],
         )
-
+        # fmt: on
 
         return dq, dk, dv, db, dmask
 
