@@ -494,7 +494,7 @@ def estimate_bwd_kv(
     "early_config_prune": prune,
     "perf_model": estimate_bwd_kv,
     "top_k": 10
-})
+}, reset_to_zero=["dk_ptr", "dv_ptr"])
 @triton.jit
 def _bwd_kv(
     d_ptr, stride_dh, stride_dm, stride_dn,
@@ -716,7 +716,7 @@ def estimate_bwd_q(
     "early_config_prune": prune,
     "perf_model": estimate_bwd_q,
     "top_k": 10
-})
+}, reset_to_zero=["dq_ptr"])
 @triton.jit
 def _bwd_q(
     d_ptr, stride_dh, stride_dm, stride_dn,
@@ -916,7 +916,7 @@ def estimate_bwd_b(
     "early_config_prune": prune,
     "perf_model": estimate_bwd_b,
     "top_k": 10
-})
+}, reset_to_zero=["db_ptr"])
 @triton.jit
 def _bwd_b(
     d_ptr, stride_dh, stride_dm, stride_dn,
