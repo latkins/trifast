@@ -7,6 +7,7 @@ from trifast.equiv import (
     triangle_attention_simple,
     triangle_self_attention_ds4s,
 )
+from trifast.utils import gen_tensors, disable_tf32, enable_tf32
 
 configs = [
     triton.testing.Benchmark(
@@ -22,73 +23,74 @@ configs = [
             2048,
         ],  # Different values for n to benchmark
         line_arg="provider",  # Argument name whose value corresponds to different lines in the plot
-        line_vals=["compiled", "simple", "kernel", "ds4s"],  # Values for the line_arg
+        line_vals=[
+            "simple",
+            "simple_tf32",
+            "simple_compiled",
+            "simple_compiled_tf32",
+            "trifast",
+            "ds4s",
+        ],  # Values for the line_arg
         line_names=[
-            "Compiled Simple Pytorch",
             "Simple Pytorch",
-            "Triton Kernel",
+            "Simple Pytorch, TF32 enabled",
+            "Simple Pytorch, Compiled",
+            "Simple Pytorch, Compiled, TF32 enabled",
+            "Trifast",
             "Deepspeed",
         ],  # Labels for the lines
         styles=[
-            ("green", "--"),
-            ("red", "--"),
-            ("blue", "-"),
+            ("green", "-."),
+            ("red", "-."),
+            ("yellow", "-."),
+            ("pink", "-."),
+            ("blue", ":"),
             ("orange", ":"),
         ],  # Line styles
         ylabel="milliseconds",  # Label name for the y-axis
-        plot_name=f"tri_attn_{mode}",
-        args={"mode": mode},  # Other arguments to pass to the function
+        plot_name=f"tri_attn_{mode}_{dtype}",
+        args={"mode": mode, "dtype": dtype},  # Other arguments to pass to the function
     )
     for mode in ["bwd", "fwd"]
+    for dtype in [torch.float32, torch.float16, torch.bfloat16]
 ]
 
 
 @triton.testing.perf_report(configs)
-def benchmark(n, mode, provider):
+def benchmark(n, mode, dtype, provider):
     assert mode in ["fwd", "bwd"]
 
     # this is what af3 uses for d and h.
     d = 32
     h = 4
-    device = "cuda"
-    dtype = torch.bfloat16
 
     quantiles = [0.5, 0.1, 0.9]
-    warmup = 100
-    rep = 200
+    warmup = 5
+    rep = 100
 
-    def get_tensors():
-        torch.manual_seed(0)
-        q = torch.randn(
-            (h, n, n, d), device=device, dtype=dtype, requires_grad=mode == "bwd"
-        )
-        k = torch.randn(
-            (h, n, n, d), device=device, dtype=dtype, requires_grad=mode == "bwd"
-        )
-        v = torch.randn(
-            (h, n, n, d), device=device, dtype=dtype, requires_grad=mode == "bwd"
-        )
+    print(provider, n, mode, dtype)
+    q, k, v, bias, mask = gen_tensors(
+        n=n,
+        h=h,
+        d=d,
+        dtype=dtype,
+        device=torch.device("cuda"),
+        use_mask=True,
+    )
 
-        bias = torch.randn(
-            (h, n, n), device=device, dtype=dtype, requires_grad=mode == "bwd"
-        )
-        mask = torch.randn((n, n), device=device) > 0
-        mask = torch.zeros_like(mask)
-
-        do = torch.randn_like(q)
-
-        return q, k, v, bias, mask, do
-
-    print(provider, n, mode)
-    q, k, v, bias, mask, do = get_tensors()
-
-    if provider == "compiled":
-        fn = lambda: torch.compile(triangle_attention_simple, fullgraph=True)(
+    if provider == "simple":
+        fn = lambda: disable_tf32(triangle_attention_simple)(q, k, v, bias, mask)
+    if provider == "simple_tf32":
+        fn = lambda: enable_tf32(triangle_attention_simple)(q, k, v, bias, mask)
+    if provider == "simple_compiled":
+        fn = lambda: disable_tf32(torch.compile(triangle_attention_simple))(
             q, k, v, bias, mask
         )
-    if provider == "simple":
-        fn = lambda: triangle_attention_simple(q, k, v, bias, mask)
-    if provider == "kernel":
+    if provider == "simple_compiled_tf32":
+        fn = lambda: enable_tf32(torch.compile(triangle_attention_simple))(
+            q, k, v, bias, mask
+        )
+    if provider == "trifast":
         fn = lambda: triangle_attention(q, k, v, bias, mask)
     if provider == "ds4s":
         fn = lambda: triangle_self_attention_ds4s(q, k, v, bias, mask)
@@ -96,7 +98,8 @@ def benchmark(n, mode, provider):
     try:
         if mode == "bwd":
             o = fn()
-            fn = lambda: o.backward(do, retain_graph=True)
+            s = o.sum()
+            fn = lambda: s.backward(retain_graph=True)
 
         ms, max_ms, min_ms = triton.testing.do_bench(
             fn,

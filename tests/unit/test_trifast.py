@@ -33,7 +33,8 @@ dtype_eps = {
         (32, 1, 32),
         (64, 1, 64),
         (16, 4, 128),
-        *[(n, 4, 32) for n in range(17, 200, 3)],
+        *[(n, 4, 32) for n in range(17, 200, 1)],
+        (191, 4, 32)
     ],
 )
 def test_values(n: int, h: int, d: int, mask: bool, dtype: torch.dtype):
@@ -46,9 +47,9 @@ def test_values(n: int, h: int, d: int, mask: bool, dtype: torch.dtype):
 
     dq_ref, dk_ref, dv_ref, db_ref = clone_and_clear_grad(q, k, v, b)
 
-    o_tri = triangle_attention(q.to(dtype), k.to(dtype), v.to(dtype), b.to(dtype), m)
-    o_tri.sum().backward()
-    dq_tri, dk_tri, dv_tri, db_tri = clone_and_clear_grad(q, k, v, b)
+    o_kernel = triangle_attention(q.to(dtype), k.to(dtype), v.to(dtype), b.to(dtype), m)
+    o_kernel.sum().backward()
+    dq_kernel, dk_kernel, dv_kernel, db_kernel = clone_and_clear_grad(q, k, v, b)
 
     o_pt = enable_tf32(attention_reference)(
         q.to(dtype), k.to(dtype), v.to(dtype), b.to(dtype), m
@@ -56,12 +57,11 @@ def test_values(n: int, h: int, d: int, mask: bool, dtype: torch.dtype):
     o_pt.sum().backward()
     dq_pt, dk_pt, dv_pt, db_pt = clone_and_clear_grad(q, k, v, b)
 
-    compare_values(o_tri, o_pt, o_ref, "o failed", eps=dtype_eps[dtype])
-    compare_values(dq_tri, dq_pt, dq_ref, "dq failed", eps=dtype_eps[dtype])
-    compare_values(dk_tri, dk_pt, dk_ref, "dk failed", eps=dtype_eps[dtype])
-    compare_values(dv_tri, dv_pt, dv_ref, "dv failed", eps=dtype_eps[dtype])
-    compare_values(db_tri, db_pt, db_ref, "db failed", eps=dtype_eps[dtype])
-
+    compare_values(o_kernel, o_pt, o_ref, "o failed", eps=dtype_eps[dtype])
+    compare_values(dq_kernel, dq_pt, dq_ref, "dq failed", eps=dtype_eps[dtype])
+    compare_values(dk_kernel, dk_pt, dk_ref, "dk failed", eps=dtype_eps[dtype])
+    compare_values(dv_kernel, dv_pt, dv_ref, "dv failed", eps=dtype_eps[dtype])
+    compare_values(db_kernel, db_pt, db_ref, "db failed", eps=dtype_eps[dtype])
     torch.cuda.synchronize()
 
 
@@ -141,7 +141,7 @@ def compare_dot(kernel_output, pytorch_output, ref_output, msg="", threshold=0.0
         (32, 1, 32),
         (64, 1, 64),
         (16, 4, 128),
-        *[(n, 4, 32) for n in range(17, 200, 3)],
+        *[(n, 4, 32) for n in range(17, 200, 1)],
         (512, 2, 32),
     ],
 )

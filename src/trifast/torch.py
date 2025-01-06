@@ -76,15 +76,14 @@ class _triangle_attention(torch.autograd.Function):
         # e.g. [h,n,n]
         # we need d_{hij} = (o_{hij} \dot do_{hij}) to simplify gradient computation, so pre-compute
         d = torch.empty_like(l)
-        PRE_BLOCK_J = 16
-        pre_grid = (triton.cdiv(n, PRE_BLOCK_J), n, h)
+        pre_grid = lambda x: (triton.cdiv(n, x["BLOCK_J"]), n, h)
 
         # fmt: off
         _bwd_preprocess[pre_grid](
             o, o.stride(0), o.stride(1), o.stride(2), o.stride(3),
             do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
             d, d.stride(0), d.stride(1), d.stride(2),
-            N=n, H=h, DIM=dim, BLOCK_J=PRE_BLOCK_J
+            N=n, H=h, DIM=dim,
         )
 
         # Do the actual backward pass.
