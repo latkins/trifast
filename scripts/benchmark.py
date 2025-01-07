@@ -51,8 +51,8 @@ configs = [
         plot_name=f"tri_attn_{mode}_{dtype}",
         args={"mode": mode, "dtype": dtype},  # Other arguments to pass to the function
     )
-    for mode in ["bwd", "fwd"]
-    for dtype in [torch.float32, torch.float16, torch.bfloat16]
+    for mode in ["fwd", "bwd"]
+    for dtype in [torch.bfloat16, torch.float32, torch.float16]
 ]
 
 

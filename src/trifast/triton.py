@@ -4,8 +4,19 @@ import triton
 from triton.runtime import driver
 import triton.testing
 import triton.language as tl
-from trifast.autotune_helpers import get_tflops
-from triton.testing import get_dram_gbps
+from trifast.autotune import autotune
+from trifast.triton_estimates import (
+    estimate_fwd,
+    estimate_bwd_kv,
+    estimate_bwd_preprocess,
+    estimate_bwd_q,
+    estimate_bwd_b,
+)
+
+cache_dir = "/tmp/triton_cache/"
+
+precision = "ieee"
+top_k = 20
 
 
 def prune(configs, named_args, **kwargs):
@@ -32,6 +43,17 @@ def prune(configs, named_args, **kwargs):
         if required_shared_memory <= max_shared_memory:
             pruned_configs.append(config)
     configs = pruned_configs
+
+    # We shouldn't have either block > 2x n.
+    n = kwargs["N"]
+
+    pruned_configs = []
+    for config in configs:
+        if config.kwargs["BLOCK_J"] <= n * 2 and config.kwargs["BLOCK_K"] <= n * 2:
+            pruned_configs.append(config)
+
+    configs = pruned_configs
+
     return configs
 
 
@@ -48,99 +70,12 @@ cfgs = [
 ]
 
 
-def estimate_fwd(
-    num_warps,
-    num_stages,
-    q_ptr,
-    N,
-    H,
-    DIM,  # dimensions
-    BLOCK_J,
-    BLOCK_K,
-    **kwargs,
-):
-    device = torch.cuda.current_device()
-    dtype = q_ptr.dtype
-    dtsize = q_ptr.element_size()
-
-    # Calculate number of CTAs
-    num_cta_j = triton.cdiv(N, BLOCK_J)  # parallelize over chunks of j
-    num_cta_i = H  # parallelize over heads (i)
-    num_ctas = num_cta_j * num_cta_i
-    num_k_blocks = triton.cdiv(N, BLOCK_K)
-
-    # If input is smaller than block size
-    N = max(N, BLOCK_J)
-
-    # Time to compute
-    # For each k block:
-    # 1. Q @ K^T for scores: BLOCK_J x DIM @ DIM x BLOCK_K
-    # 2. exp2/log2 ops for softmax: ~3 ops per element
-    # 3. softmax @ V: BLOCK_J x BLOCK_K @ BLOCK_K x DIM
-    ops_per_k_block = (
-        2 * BLOCK_J * BLOCK_K * DIM  # Q @ K^T
-        + 3 * BLOCK_J * BLOCK_K  # softmax ops
-        + 2 * BLOCK_J * BLOCK_K * DIM  # attention @ V
-    )
-    total_ops = ops_per_k_block * num_k_blocks * H / (1024 * 1024 * 1024)  # GOPS
-    tput = get_tflops(device, num_ctas, num_warps, dtype)
-    compute_ms = total_ops / tput
-
-    # Memory bandwidth calculation
-    num_sm = driver.active.utils.get_device_properties(device)["multiprocessor_count"]
-    active_cta_ratio = min(1, num_ctas / num_sm)
-    active_cta_ratio_bw1 = min(1, num_ctas / 32)
-    active_cta_ratio_bw2 = max(min(1, (num_ctas - 32) / (108 - 32)), 0)
-
-    dram_bw = get_dram_gbps(device) * (
-        active_cta_ratio_bw1 * 0.95 + active_cta_ratio_bw2 * 0.05
-    )
-    l2_bw = dram_bw * 4
-
-    # Calculate memory loads
-    # Q is loaded once per head and reused
-    load_q_dram = N * DIM * H * dtsize
-
-    # Per k block:
-    # - K block: loaded and potentially reused across j blocks
-    # - V block: loaded and potentially reused across j blocks
-    # - B (bias) block: loaded for each block combination
-    # - Mask block: loaded for each k block
-    load_k_dram = N * DIM * H * dtsize * (1 + 0.2 * (num_cta_j - 1))
-    load_k_l2 = N * DIM * H * dtsize * 0.8 * (num_cta_j - 1)
-
-    load_v_dram = N * DIM * H * dtsize * (1 + 0.2 * (num_cta_j - 1))
-    load_v_l2 = N * DIM * H * dtsize * 0.8 * (num_cta_j - 1)
-
-    load_b_dram = N * N * H * dtsize  # Assuming full bias matrix
-    load_mask_dram = N * N * dtsize  # Assuming full mask matrix
-
-    # Total memory traffic
-    total_dram = (
-        load_q_dram + load_k_dram + load_v_dram + load_b_dram + load_mask_dram
-    ) / (1024 * 1024)  # MB
-    total_l2 = (load_k_l2 + load_v_l2) / (1024 * 1024)  # MB
-
-    # Loading time in ms
-    load_ms = total_dram / dram_bw + total_l2 / l2_bw
-
-    # Store output and LSE
-    store_bw = dram_bw * 0.6
-    store_o_dram = N * DIM * H * dtsize / (1024 * 1024)  # MB
-    store_lse_dram = N * H * dtsize / (1024 * 1024)  # MB
-    store_ms = (store_o_dram + store_lse_dram) / store_bw
-
-    total_time_ms = max(compute_ms, load_ms) + store_ms
-
-    return total_time_ms
-
-
 # fmt: off
 @triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@triton.autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], prune_configs_by={
+@autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], cache_dir=cache_dir, prune_configs_by={
     "early_config_prune": prune,
     "perf_model": estimate_fwd,
-    "top_k": 10
+    "top_k": top_k,
 })
 @triton.jit
 def _fwd(
@@ -269,76 +204,13 @@ bwd_pre_cfgs = [
     for stages in [1, 2, 3, 4, 5]
 ]
 
-def estimate_bwd_preprocess(
-    num_warps,
-    num_stages,
-    o_ptr,  # tensors
-    N, H, DIM,  # dimensions
-    BLOCK_J,
-    **kwargs,
-):
-
-    device = torch.cuda.current_device()
-    dtype = o_ptr.dtype
-    dtsize = o_ptr.element_size()
-
-    # Calculate number of CTAs
-    num_cta_j = triton.cdiv(N, BLOCK_J)  # parallelize over chunks of j
-    num_cta_i = N  # parallelize along i
-    num_cta_h = H  # parallelize along h
-    num_ctas = num_cta_j * num_cta_i * num_cta_h
-
-    # If input is smaller than block size
-    N = max(N, BLOCK_J)
-
-    # Time to compute
-    # Each block computes BLOCK_J dot products of length DIM
-    ops_per_block = 2 * BLOCK_J * DIM  # multiply-add for dot products
-    total_ops = ops_per_block * num_cta_j * N * H / (1024 * 1024 * 1024)  # GOPS
-    tput = get_tflops(device, num_ctas, num_warps, dtype)
-    compute_ms = total_ops / tput
-
-    # Memory bandwidth calculation
-    num_sm = driver.active.utils.get_device_properties(device)["multiprocessor_count"]
-    active_cta_ratio = min(1, num_ctas / num_sm)
-    active_cta_ratio_bw1 = min(1, num_ctas / 32)
-    active_cta_ratio_bw2 = max(min(1, (num_ctas - 32) / (108 - 32)), 0)
-
-    dram_bw = get_dram_gbps(device) * (
-        active_cta_ratio_bw1 * 0.95 + active_cta_ratio_bw2 * 0.05
-    )
-    l2_bw = dram_bw * 4
-
-    # Calculate memory loads
-    # Each CTA loads a BLOCK_J x DIM block from both o and do
-    load_o_dram = N * N * H * DIM * dtsize * (1 + 0.2 * (num_cta_j - 1))
-    load_o_l2 = N * N * H * DIM * dtsize * 0.8 * (num_cta_j - 1)
-
-    load_do_dram = N * N * H * DIM * dtsize * (1 + 0.2 * (num_cta_j - 1))
-    load_do_l2 = N * N * H * DIM * dtsize * 0.8 * (num_cta_j - 1)
-
-    # Total memory traffic
-    total_dram = (load_o_dram + load_do_dram) / (1024 * 1024)  # MB
-    total_l2 = (load_o_l2 + load_do_l2) / (1024 * 1024)  # MB
-
-    # Loading time in ms
-    load_ms = total_dram / dram_bw + total_l2 / l2_bw
-
-    # Store results
-    store_bw = dram_bw * 0.6
-    store_d_dram = N * N * H * dtsize / (1024 * 1024)  # MB (dot product results)
-    store_ms = store_d_dram / store_bw
-
-    total_time_ms = max(compute_ms, load_ms) + store_ms
-
-    return total_time_ms
-
 #fmt: off
 @triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@triton.autotune(configs=bwd_pre_cfgs, key=["H", "DIM", "CLOSEST_N"], prune_configs_by={
+@autotune(configs=bwd_pre_cfgs, key=["H", "DIM", "CLOSEST_N"], cache_dir=cache_dir, prune_configs_by={
     "perf_model": estimate_bwd_preprocess,
-    "top_k": 10
+    "top_k": top_k,
 })
+
 @triton.jit
 def _bwd_preprocess(o_ptr, stride_oh, stride_oi, stride_oj, stride_od,
                     do_ptr, stride_doh, stride_doi, stride_doj, stride_dod,
@@ -391,110 +263,12 @@ def _bwd_preprocess(o_ptr, stride_oh, stride_oi, stride_oj, stride_od,
 
     tl.store(d_block_ptr, vals.to(tl.float32), boundary_check=(0,))
 
-def estimate_bwd_kv(
-    num_warps,
-    num_stages,
-    q_ptr,  # tensors
-    N, H, DIM,  # dimensions
-    BLOCK_J, BLOCK_K,
-    **kwargs,
-):
-
-    device = torch.cuda.current_device()
-    dtype = q_ptr.dtype
-    dtsize = q_ptr.element_size()
-
-    # Calculate number of CTAs
-    num_cta_k = triton.cdiv(N, BLOCK_K)  # parallelize over chunks of k
-    num_cta_i = N  # parallelize along i (sequence dimension)
-    num_cta_h = H  # parallelize along h (head dimension)
-    num_ctas = num_cta_k * num_cta_i * num_cta_h
-
-    # Number of j-dimension blocks we'll process
-    num_j_blocks = triton.cdiv(N, BLOCK_J)
-
-    # If input is smaller than block size
-    N = max(N, max(BLOCK_J, BLOCK_K))
-
-    # Time to compute
-    # For each j block:
-    # 1. Q @ K^T for scores: BLOCK_J x DIM @ DIM x BLOCK_K
-    # 2. exp2 ops for softmax: BLOCK_J x BLOCK_K
-    # 3. DO @ V^T for dV: BLOCK_J x DIM @ DIM x BLOCK_K
-    # 4. DO @ V for dS: BLOCK_J x DIM @ DIM x BLOCK_K
-    # 5. dS @ Q for dK: BLOCK_J x BLOCK_K @ BLOCK_J x DIM
-    ops_per_j_block = (
-        2 * BLOCK_J * BLOCK_K * DIM +     # Q @ K^T
-        BLOCK_J * BLOCK_K +               # exp2 ops
-        2 * BLOCK_J * BLOCK_K * DIM +     # DO @ V^T
-        2 * BLOCK_J * BLOCK_K * DIM +     # DO @ V
-        2 * BLOCK_J * BLOCK_K * DIM       # dS @ Q
-    )
-    total_ops = ops_per_j_block * num_j_blocks * num_cta_k * H / (1024 * 1024 * 1024)  # GOPS
-    tput = get_tflops(device, num_ctas, num_warps, dtype)
-    compute_ms = total_ops / tput
-
-    # Memory bandwidth calculation
-    num_sm = driver.active.utils.get_device_properties(device)["multiprocessor_count"]
-    active_cta_ratio = min(1, num_ctas / num_sm)
-    active_cta_ratio_bw1 = min(1, num_ctas / 32)
-    active_cta_ratio_bw2 = max(min(1, (num_ctas - 32) / (108 - 32)), 0)
-
-    dram_bw = get_dram_gbps(device) * (
-        active_cta_ratio_bw1 * 0.95 + active_cta_ratio_bw2 * 0.05
-    )
-    l2_bw = dram_bw * 4
-
-    # Calculate memory loads
-    # Initial loads per CTA:
-    load_k_dram = N * DIM * H * dtsize  # K loaded once per CTA
-    load_v_dram = N * DIM * H * dtsize  # V loaded once per CTA
-
-    # Per j-block loads:
-    # Q block loaded and potentially reused
-    load_q_dram = N * N * H * DIM * dtsize * (1 + 0.2 * (num_j_blocks - 1))
-    load_q_l2 = N * N * H * DIM * dtsize * 0.8 * (num_j_blocks - 1)
-
-    # Bias blocks
-    load_b_dram = N * N * H * dtsize
-
-    # Row max and mask
-    load_l_dram = N * H * dtsize
-    load_m_dram = N * N * dtsize
-
-    # DO blocks
-    load_do_dram = N * N * H * DIM * dtsize * (1 + 0.2 * (num_j_blocks - 1))
-    load_do_l2 = N * N * H * DIM * dtsize * 0.8 * (num_j_blocks - 1)
-
-    # Delta blocks
-    load_d_dram = N * H * dtsize
-
-    # Total memory traffic
-    total_dram = (
-        load_k_dram + load_v_dram + load_q_dram + load_b_dram +
-        load_l_dram + load_m_dram + load_do_dram + load_d_dram
-    ) / (1024 * 1024)  # MB
-    total_l2 = (load_q_l2 + load_do_l2) / (1024 * 1024)  # MB
-
-    # Loading time in ms
-    load_ms = total_dram / dram_bw + total_l2 / l2_bw
-
-    # Store results (dk and dv)
-    store_bw = dram_bw * 0.6
-    store_dkv_dram = 2 * N * DIM * H * dtsize / (1024 * 1024)  # MB (both dk and dv)
-    store_ms = store_dkv_dram / store_bw
-
-    total_time_ms = max(compute_ms, load_ms) + store_ms
-
-    return total_time_ms
-
 # fmt: off
 @triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@triton.autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], prune_configs_by={
-    "early_config_prune": prune,
-    "perf_model": estimate_bwd_kv,
-    "top_k": 10
-}, reset_to_zero=["dk_ptr", "dv_ptr"])
+@autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], reset_to_zero=["dk_ptr", "dv_ptr"],
+    cache_dir=cache_dir, prune_configs_by={"early_config_prune": prune, "perf_model": estimate_bwd_kv,
+    "top_k": top_k,
+})
 @triton.jit
 def _bwd_kv(
     d_ptr, stride_dh, stride_dm, stride_dn,
@@ -616,107 +390,11 @@ def _bwd_kv(
     tl.store(dk_ptrs, dk_block.to(input_dtype), mask_k[:, None])
     tl.store(dv_ptrs, dv_block.to(input_dtype), mask_k[:, None])
 
-def estimate_bwd_q(
-    num_warps,
-    num_stages,
-    q_ptr,
-    N, H, DIM,  # dimensions
-    CLOSEST_N: tl.constexpr,
-    BLOCK_J, BLOCK_K,
-    **kwargs,
-):
-    device = torch.cuda.current_device()
-    dtype = q_ptr.dtype
-    dtsize = q_ptr.element_size()
-
-    # Calculate number of CTAs
-    num_cta_j = triton.cdiv(N, BLOCK_J)  # parallelize over chunks of j
-    num_cta_i = N  # parallelize along i (sequence dimension)
-    num_cta_h = H  # parallelize along h (head dimension)
-    num_ctas = num_cta_j * num_cta_i * num_cta_h
-
-    # Number of k-dimension blocks we'll process
-    num_k_blocks = triton.cdiv(N, BLOCK_K)
-
-    # If input is smaller than block size
-    N = max(N, max(BLOCK_J, BLOCK_K))
-
-    # Time to compute
-    # Initial loads and per-block operations:
-    # For each k block:
-    # 1. Q @ K^T for scores: BLOCK_J x DIM @ DIM x BLOCK_K
-    # 2. exp2 ops for softmax: BLOCK_J x BLOCK_K
-    # 3. DO @ V for dsm_value: BLOCK_J x DIM @ DIM x BLOCK_K
-    # 4. dscores @ K for dq accumulation: BLOCK_J x BLOCK_K @ BLOCK_K x DIM
-    ops_per_k_block = (
-        2 * BLOCK_J * BLOCK_K * DIM +     # Q @ K^T
-        BLOCK_J * BLOCK_K +               # exp2 ops
-        2 * BLOCK_J * BLOCK_K * DIM +     # DO @ V
-        2 * BLOCK_J * BLOCK_K * DIM       # dscores @ K
-    )
-    total_ops = ops_per_k_block * num_k_blocks * num_cta_j * H / (1024 * 1024 * 1024)  # GOPS
-    tput = get_tflops(device, num_ctas, num_warps, dtype)
-    compute_ms = total_ops / tput
-
-    # Memory bandwidth calculation
-    num_sm = driver.active.utils.get_device_properties(device)["multiprocessor_count"]
-    active_cta_ratio = min(1, num_ctas / num_sm)
-    active_cta_ratio_bw1 = min(1, num_ctas / 32)
-    active_cta_ratio_bw2 = max(min(1, (num_ctas - 32) / (108 - 32)), 0)
-
-    dram_bw = get_dram_gbps(device) * (
-        active_cta_ratio_bw1 * 0.95 + active_cta_ratio_bw2 * 0.05
-    )
-    l2_bw = dram_bw * 4
-
-    # Calculate memory loads
-    # Initial loads per CTA:
-    load_q_dram = BLOCK_J * DIM * dtsize  # Q block loaded once
-    load_l_dram = BLOCK_J * dtsize        # denominator
-    load_d_dram = BLOCK_J * dtsize        # delta
-    load_do_dram = BLOCK_J * DIM * dtsize # DO block
-
-    # Per k-block loads:
-    # K blocks loaded and potentially reused
-    load_k_dram = N * DIM * H * dtsize * (1 + 0.2 * (num_k_blocks - 1))
-    load_k_l2 = N * DIM * H * dtsize * 0.8 * (num_k_blocks - 1)
-
-    # V blocks (transposed)
-    load_v_dram = N * DIM * H * dtsize * (1 + 0.2 * (num_k_blocks - 1))
-    load_v_l2 = N * DIM * H * dtsize * 0.8 * (num_k_blocks - 1)
-
-    # Bias blocks
-    load_b_dram = N * N * H * dtsize
-
-    # Mask blocks
-    load_mask_dram = N * N * dtsize
-
-    # Total memory traffic
-    total_dram = (
-        load_q_dram + load_l_dram + load_d_dram + load_do_dram +
-        load_k_dram + load_v_dram + load_b_dram + load_mask_dram
-    ) / (1024 * 1024)  # MB
-    total_l2 = (load_k_l2 + load_v_l2) / (1024 * 1024)  # MB
-
-    # Loading time in ms
-    load_ms = total_dram / dram_bw + total_l2 / l2_bw
-
-    # Store results (dq)
-    store_bw = dram_bw * 0.6
-    store_dq_dram = BLOCK_J * DIM * dtsize / (1024 * 1024)  # MB
-    store_ms = store_dq_dram / store_bw
-
-    total_time_ms = max(compute_ms, load_ms) + store_ms
-
-    return total_time_ms
 
 # fmt: off
 @triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@triton.autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], prune_configs_by={
-    "early_config_prune": prune,
-    "perf_model": estimate_bwd_q,
-    "top_k": 10
-}, reset_to_zero=["dq_ptr"])
+@autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], reset_to_zero=["dq_ptr"], cache_dir=cache_dir,
+          prune_configs_by={"early_config_prune": prune, "perf_model": estimate_bwd_q, "top_k": top_k})
 @triton.jit
 def _bwd_q(
     d_ptr, stride_dh, stride_dm, stride_dn,
@@ -819,104 +497,10 @@ def _bwd_q(
 
     tl.store(dq_ptrs, dq_block.to(input_dtype), mask=mask_j[:, None])
 
-def estimate_bwd_b(
-    num_warps,
-    num_stages,
-    q_ptr,
-    N, H, DIM,  # dimensions
-    CLOSEST_N: tl.constexpr,
-    BLOCK_J, BLOCK_K,
-    **kwargs,
-):
-    device = torch.cuda.current_device()
-    dtype = q_ptr.dtype
-    dtsize = q_ptr.element_size()
-    BLOCK_I = 1  # hardcoded in kernel
-
-    # Calculate number of CTAs
-    num_cta_j = triton.cdiv(N, BLOCK_J)  # parallelize over chunks of j
-    num_cta_k = triton.cdiv(N, BLOCK_K)  # parallelize over chunks of k
-    num_cta_h = H  # parallelize along h (head dimension)
-    num_ctas = num_cta_j * num_cta_k * num_cta_h
-
-    # Number of i-dimension blocks we'll process
-    num_i_blocks = triton.cdiv(N, BLOCK_I)
-
-    # If input is smaller than block size
-    N = max(N, max(BLOCK_J, BLOCK_K))
-
-    # Time to compute
-    # For each i block:
-    # 1. Q @ K^T for scores: BLOCK_J x DIM @ DIM x BLOCK_K
-    # 2. exp2 ops for softmax: BLOCK_J x BLOCK_K
-    # 3. DO @ V^T for dsm_value: BLOCK_J x DIM @ DIM x BLOCK_K
-    # 4. Element-wise ops for final gradient
-    ops_per_i_block = (
-        2 * BLOCK_J * BLOCK_K * DIM +     # Q @ K^T
-        BLOCK_J * BLOCK_K +               # exp2 ops
-        2 * BLOCK_J * BLOCK_K * DIM +     # DO @ V^T
-        2 * BLOCK_J * BLOCK_K            # Element-wise ops
-    )
-    total_ops = ops_per_i_block * num_i_blocks * num_cta_j * num_cta_k * H / (1024 * 1024 * 1024)  # GOPS
-    tput = get_tflops(device, num_ctas, num_warps, dtype)
-    compute_ms = total_ops / tput
-
-    # Memory bandwidth calculation
-    num_sm = driver.active.utils.get_device_properties(device)["multiprocessor_count"]
-    active_cta_ratio = min(1, num_ctas / num_sm)
-    active_cta_ratio_bw1 = min(1, num_ctas / 32)
-    active_cta_ratio_bw2 = max(min(1, (num_ctas - 32) / (108 - 32)), 0)
-
-    dram_bw = get_dram_gbps(device) * (
-        active_cta_ratio_bw1 * 0.95 + active_cta_ratio_bw2 * 0.05
-    )
-    l2_bw = dram_bw * 4
-
-    # Calculate memory loads
-    # Per i-block loads:
-    load_q_dram = N * DIM * H * dtsize   # Q blocks
-    load_k_dram = N * DIM * H * dtsize   # K blocks
-    load_v_dram = N * DIM * H * dtsize   # V blocks
-
-    # Bias blocks loaded once per iteration
-    load_b_dram = N * N * H * dtsize
-
-    # L and delta loaded for each block
-    load_l_dram = N * H * dtsize
-    load_d_dram = N * H * dtsize
-
-    # DO blocks
-    load_do_dram = N * DIM * H * dtsize
-
-    # Mask blocks
-    load_m_dram = N * N * dtsize
-
-    # Total memory traffic
-    total_dram = (
-        load_q_dram + load_k_dram + load_v_dram + load_b_dram +
-        load_l_dram + load_d_dram + load_do_dram + load_m_dram
-    ) / (1024 * 1024)  # MB
-
-    # Loading time in ms
-    load_ms = total_dram / dram_bw
-
-    # Store results (db)
-    store_bw = dram_bw * 0.6
-    store_db_dram = N * N * H * dtsize / (1024 * 1024)  # MB (full bias gradient)
-    store_ms = store_db_dram / store_bw
-
-    total_time_ms = max(compute_ms, load_ms) + store_ms
-
-
-    return total_time_ms
-
 # fmt: off
 @triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@triton.autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], prune_configs_by={
-    "early_config_prune": prune,
-    "perf_model": estimate_bwd_b,
-    "top_k": 10
-}, reset_to_zero=["db_ptr"])
+@autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], reset_to_zero=["db_ptr"], cache_dir=cache_dir,
+          prune_configs_by={"early_config_prune": prune, "perf_model": estimate_bwd_b, "top_k": top_k})
 @triton.jit
 def _bwd_b(
     d_ptr, stride_dh, stride_dm, stride_dn,
