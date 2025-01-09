@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import json
 import hashlib
-import pickle
 import builtins
 import os
 import time
@@ -10,12 +10,12 @@ from typing import Dict
 
 import torch
 from triton.testing import do_bench, do_bench_cudagraph
-from triton import KernelInterface
-from triton import OutOfResources
+import triton
 
 
 device_capability = torch.cuda.get_device_capability()
 device_capability = f"{device_capability[0]}-{device_capability[1]}"
+
 
 def hash_configs(configs: list[triton.Config]) -> str:
     strings = list(sorted(str(config) for config in configs))
@@ -29,12 +29,32 @@ def hash_keys(keys: list[str]) -> str:
     return hashlib.sha256(string.encode()).hexdigest()
 
 
-"""
-Copied from triton -- changed autotune to persist to disk.
-"""
+def config_to_dict(config: triton.Config) -> dict:
+    # This assume we are not making use of `pre_hook` in the `triton.Config`
+    return {
+        "kwargs": config.kwargs,
+        "num_warps": config.num_warps,
+        "num_stages": config.num_stages,
+        "num_ctas": config.num_ctas,
+        "maxnreg": config.maxnreg,
+    }
 
 
-class Autotuner(KernelInterface):
+def dict_to_config(d: dict) -> triton.Config:
+    return triton.Config(
+        kwargs=d["kwargs"],
+        num_warps=d["num_warps"],
+        num_stages=d["num_stages"],
+        num_ctas=d["num_ctas"],
+        maxnreg=d["maxnreg"],
+    )
+
+
+class Autotuner(triton.KernelInterface):
+    """
+    Copied from triton -- changed autotune to persist to disk.
+    """
+
     def __init__(
         self,
         fn,
@@ -58,7 +78,7 @@ class Autotuner(KernelInterface):
             'prune_num_stages_by'(optional): a function used to prune num_stages. It takes configs:List[Config] as its input, and returns pruned configs.
         """
         if not configs:
-            self.configs = [Config({}, num_warps=4, num_stages=2, num_ctas=1)]
+            self.configs = [triton.Config({}, num_warps=4, num_stages=2, num_ctas=1)]
         else:
             self.configs = configs
         self.key_idx = [arg_names.index(k) for k in key]
@@ -68,17 +88,19 @@ class Autotuner(KernelInterface):
         # File where we'll store results if disk caching is enabled
         self.cache_file = None
         if cache_dir is not None:
-            os.makedirs(cache_dir, exist_ok=True)
+            cache_dir.mkdir(parents=True, exist_ok=True)
             # TODO: adjust this to also include the fn's hash.
-            self.cache_file = os.path.join(
-                cache_dir,
-                f"{fn.__name__}_{hash_configs(configs)}_{hash_keys(key)}_{device_capability}.pkl",
+            self.cache_file = (
+                cache_dir
+                / f"{fn.__name__}_{hash_configs(configs)}_{hash_keys(key)}_{device_capability}.json"
             )
             # Load any previously cached data
-            if os.path.isfile(self.cache_file):
+            if self.cache_file.exists():
                 try:
                     with open(self.cache_file, "rb") as f:
-                        self.cache = pickle.load(f)
+                        self.cache = {
+                            k: dict_to_config(v) for k, v in json.load(f).items()
+                        }
                 except Exception as e:
                     # If there's some corruption or incompatibility, ignore and start fresh
                     print(
@@ -146,8 +168,12 @@ class Autotuner(KernelInterface):
         """Writes the current self.cache to disk if self.cache_dir is set."""
         if self.cache_file is not None:
             try:
-                with open(self.cache_file, "wb") as f:
-                    pickle.dump(self.cache, f)
+                with open(self.cache_file, "w") as f:
+                    json.dump(
+                        {k: config_to_dict(v) for k, v in self.cache.items()},
+                        f,
+                        indent=4,
+                    )
             except Exception as e:
                 print(f"Warning: Failed to write autotune cache: {e}")
 
@@ -199,7 +225,7 @@ class Autotuner(KernelInterface):
                 rep=self.num_reps,
                 quantiles=(0.5, 0.2, 0.8),
             )
-        except (OutOfResources, CompileTimeAssertionFailure):
+        except (triton.OutOfResources, CompileTimeAssertionFailure):
             return (
                 float("inf")
                 if self.use_cuda_graph
@@ -219,7 +245,7 @@ class Autotuner(KernelInterface):
             for arg in _args:
                 if hasattr(arg, "dtype"):
                     key.append(str(arg.dtype))
-            key = tuple(key)
+            key = "_".join(map(str, key))
             if key not in self.cache:
                 # prune configs
                 used_cached_result = False

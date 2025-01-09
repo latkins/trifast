@@ -1,81 +1,30 @@
-import torch
+from pathlib import Path
 import math
 import triton
-from triton.runtime import driver
 import triton.testing
 import triton.language as tl
 from trifast.autotune import autotune
-from trifast.triton_estimates import (
-    estimate_fwd,
-    estimate_bwd_kv,
-    estimate_bwd_preprocess,
-    estimate_bwd_q,
-    estimate_bwd_b,
+from trifast.autotune_helpers import (
+    gen_fwd_cfgs,
+    gen_bwd_q_cfgs,
+    gen_bwd_kv_cfgs,
+    gen_bwd_pre_cfgs,
+    gen_bwd_b_cfgs,
 )
 
-cache_dir = "/tmp/triton_cache/"
-
-precision = "ieee"
-top_k = 20
-
-
-def prune(configs, named_args, **kwargs):
-    device = torch.cuda.current_device()
-    capability = torch.cuda.get_device_capability()
-    dtsize = named_args["q_ptr"].element_size()
-    dtype = named_args["q_ptr"].dtype
-
-    # Stolen from xformers: make sure we have enough smem
-    pruned_configs = []
-    for config in configs:
-        kw = config.kwargs
-        BLOCK_J, BLOCK_K, num_stages = (
-            kw["BLOCK_J"],
-            kw["BLOCK_K"],
-            config.num_stages,
-        )
-
-        max_shared_memory = driver.active.utils.get_device_properties(device)[
-            "max_shared_mem"
-        ]
-        # This is an under estimate
-        required_shared_memory = (BLOCK_J * BLOCK_K) * num_stages * dtsize
-        if required_shared_memory <= max_shared_memory:
-            pruned_configs.append(config)
-    configs = pruned_configs
-
-    # We shouldn't have either block > 2x n.
-    n = kwargs["N"]
-
-    pruned_configs = []
-    for config in configs:
-        if config.kwargs["BLOCK_J"] <= n * 2 and config.kwargs["BLOCK_K"] <= n * 2:
-            pruned_configs.append(config)
-
-    configs = pruned_configs
-
-    return configs
-
+cache_dir = Path(__file__).parent.parent.parent / "configs"
 
 cfgs = [
-    triton.Config(
-        {"BLOCK_J": block_j, "BLOCK_K": block_k},
-        num_warps=warps,
-        num_stages=stages,
-    )
-    for block_j in [16, 32, 64, 128]
-    for block_k in [16, 32, 64, 128]
-    for warps in [1, 2, 4, 8]
-    for stages in [1, 2, 3, 4, 5]
+    triton.Config({"BLOCK_J": 16, "BLOCK_K": 16}, 1, 1),
+    triton.Config({"BLOCK_J": 32, "BLOCK_K": 16}, 1, 1),
 ]
 
 
 # fmt: off
 @triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], cache_dir=cache_dir, prune_configs_by={
-    "early_config_prune": prune,
-    "perf_model": estimate_fwd,
-    "top_k": top_k,
+@autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], cache_dir=cache_dir,
+          prune_configs_by={
+            "early_config_prune": gen_fwd_cfgs,
 })
 @triton.jit
 def _fwd(
@@ -85,7 +34,7 @@ def _fwd(
     k_ptr, stride_kh, stride_km, stride_kn, stride_kd,
     v_ptr, stride_vh, stride_vm, stride_vn, stride_vd,
     b_ptr, stride_bh, stride_bm, stride_bn,
-    mask_ptr, stride_maskm, stride_maskn,
+    mask_ptr, stride_maskh, stride_maskm, stride_maskn,
     sm_scale,
     neg_inf,
     N, H, DIM: tl.constexpr,
@@ -127,7 +76,7 @@ def _fwd(
     base_lse_ptr = lse_ptr + (start_h * stride_lseh) + (start_i * stride_lsem)
     lse_ptrs = base_lse_ptr + (j_idxs * stride_lsen) # [j]
 
-    base_mask_ptr = mask_ptr
+    base_mask_ptr = mask_ptr + (start_h * stride_maskh)
     mask_ptrs= base_mask_ptr + (start_i * stride_maskm) + (k_idxs * stride_maskn) # [k]
 
     base_o_ptr = o_ptr + (start_h * stride_oh) + (start_i * stride_om)
@@ -145,7 +94,6 @@ def _fwd(
     for start_k in range(0, N, BLOCK_K):
         start_k = tl.multiple_of(start_k, BLOCK_K)
         mask_k = (k_idxs + start_k) < N
-
 
         kt_block = tl.load(kt_ptrs, mask_k[None, :])  # [d,k]
         b_block = tl.load(b_ptrs,  mask_j[:, None] | mask_k[None, :])  # [j,k]
@@ -193,23 +141,27 @@ def _fwd(
     tl.store(lse_ptrs, lse, mask=mask_j)
 
 
+# bwd_pre_cfgs = [
+#     triton.Config(
+#         {"BLOCK_J": block_j},
+#         num_warps=warps,
+#         num_stages=stages,
+#     )
+#     for block_j in [16, 32, 64, 128]
+#     for warps in [1, 2, 4, 8]
+#     for stages in [1, 2, 3, 4, 5]
+# ]
+
 bwd_pre_cfgs = [
-    triton.Config(
-        {"BLOCK_J": block_j},
-        num_warps=warps,
-        num_stages=stages,
-    )
-    for block_j in [16, 32, 64, 128]
-    for warps in [1, 2, 4, 8]
-    for stages in [1, 2, 3, 4, 5]
+    triton.Config({"BLOCK_J": 16}, 1, 1),
+    # triton.Config({"BLOCK_J": 32, "BLOCK_K": 16}, 1, 1),
 ]
+
 
 #fmt: off
 @triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@autotune(configs=bwd_pre_cfgs, key=["H", "DIM", "CLOSEST_N"], cache_dir=cache_dir, prune_configs_by={
-    "perf_model": estimate_bwd_preprocess,
-    "top_k": top_k,
-})
+@autotune(configs=bwd_pre_cfgs, key=["H", "DIM", "CLOSEST_N"], cache_dir=cache_dir,
+          prune_configs_by={"early_config_prune": gen_bwd_pre_cfgs})
 
 @triton.jit
 def _bwd_preprocess(o_ptr, stride_oh, stride_oi, stride_oj, stride_od,
@@ -266,9 +218,8 @@ def _bwd_preprocess(o_ptr, stride_oh, stride_oi, stride_oj, stride_od,
 # fmt: off
 @triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
 @autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], reset_to_zero=["dk_ptr", "dv_ptr"],
-    cache_dir=cache_dir, prune_configs_by={"early_config_prune": prune, "perf_model": estimate_bwd_kv,
-    "top_k": top_k,
-})
+          cache_dir=cache_dir,
+          prune_configs_by={"early_config_prune": gen_bwd_kv_cfgs})
 @triton.jit
 def _bwd_kv(
     d_ptr, stride_dh, stride_dm, stride_dn,
@@ -277,7 +228,7 @@ def _bwd_kv(
     v_ptr, stride_vh, stride_vm, stride_vn, stride_vd,
     b_ptr, stride_bh, stride_bm, stride_bn,
     l_ptr, stride_lh, stride_lm, stride_ln,
-    m_ptr, stride_mm, stride_mn,
+    m_ptr, stride_mh, stride_mm, stride_mn,
     do_ptr, stride_doh, stride_dom, stride_don, stride_dod,
     dk_ptr, stride_dkh, stride_dkm, stride_dkn, stride_dkd,
     dv_ptr, stride_dvh, stride_dvm, stride_dvn, stride_dvd,
@@ -322,7 +273,7 @@ def _bwd_kv(
     base_l_ptr = l_ptr + (start_h * stride_lh) + (start_i * stride_lm)
     l_ptrs = base_l_ptr + (j_idxs * stride_ln) # [j]
 
-    base_mask_ptr = m_ptr
+    base_mask_ptr = m_ptr + (start_h * stride_mh)
     mask_ptrs= base_mask_ptr + (start_i * stride_mm) + (k_idxs * stride_mn) # [k]
 
     base_do_ptr = do_ptr + (start_h * stride_doh) + (start_i * stride_dom)
@@ -394,7 +345,7 @@ def _bwd_kv(
 # fmt: off
 @triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
 @autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], reset_to_zero=["dq_ptr"], cache_dir=cache_dir,
-          prune_configs_by={"early_config_prune": prune, "perf_model": estimate_bwd_q, "top_k": top_k})
+          prune_configs_by={"early_config_prune": gen_bwd_q_cfgs})
 @triton.jit
 def _bwd_q(
     d_ptr, stride_dh, stride_dm, stride_dn,
@@ -403,7 +354,7 @@ def _bwd_q(
     v_ptr, stride_vh, stride_vm, stride_vn, stride_vd,
     b_ptr, stride_bh, stride_bm, stride_bn,
     l_ptr, stride_lh, stride_lm, stride_ln,
-    mask_ptr, stride_maskm, stride_maskn,
+    mask_ptr, stride_maskh, stride_maskm, stride_maskn,
     do_ptr, stride_doh, stride_dom, stride_don, stride_dod,
     dq_ptr, stride_dqh, stride_dqm, stride_dqn, stride_dqd,
     sm_scale,
@@ -445,7 +396,7 @@ def _bwd_q(
     base_l_ptr = l_ptr + (start_h * stride_lh) + (start_i * stride_lm)
     l_ptrs = base_l_ptr + (j_idxs * stride_ln) # [j]
 
-    base_mask_ptr = mask_ptr
+    base_mask_ptr = mask_ptr + (start_h * stride_maskh)
     mask_ptrs= base_mask_ptr + (start_i * stride_maskm) + (k_idxs * stride_maskn) # [k]
 
     base_d_ptr = d_ptr + (start_h * stride_dh) + (start_i * stride_dm)
@@ -500,7 +451,7 @@ def _bwd_q(
 # fmt: off
 @triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
 @autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], reset_to_zero=["db_ptr"], cache_dir=cache_dir,
-          prune_configs_by={"early_config_prune": prune, "perf_model": estimate_bwd_b, "top_k": top_k})
+          prune_configs_by={"early_config_prune": gen_bwd_b_cfgs})
 @triton.jit
 def _bwd_b(
     d_ptr, stride_dh, stride_dm, stride_dn,
@@ -509,7 +460,7 @@ def _bwd_b(
     v_ptr, stride_vh, stride_vm, stride_vn, stride_vd,
     b_ptr, stride_bh, stride_bm, stride_bn,
     l_ptr, stride_lh, stride_lm, stride_ln,
-    m_ptr, stride_mm, stride_mn,
+    m_ptr, stride_mh, stride_mm, stride_mn,
     do_ptr, stride_doh, stride_dom, stride_don, stride_dod,
     db_ptr, stride_dbh, stride_dbm, stride_dbn,
     sm_scale,
@@ -554,7 +505,7 @@ def _bwd_b(
     base_l_ptr = l_ptr + (start_h * stride_lh)
     l_ptrs = base_l_ptr + (j_idxs * stride_ln) # [j]
 
-    base_mask_ptr = m_ptr
+    base_mask_ptr = m_ptr + (start_h * stride_mh)
     mask_ptrs= base_mask_ptr + (k_idxs * stride_mn) # [k]
 
     base_do_ptr = do_ptr + (start_h * stride_doh)
@@ -583,7 +534,7 @@ def _bwd_b(
 
         scores = tl.dot(q_block, tl.trans(k_block), b_block, input_precision="ieee") # [j,k]
         scores = tl.where(mask_j[:, None] & mask_k[None, :], scores, neg_inf)
-        scores= tl.where(m_block[None, :], neg_inf, scores)
+        scores = tl.where(m_block[None, :], neg_inf, scores)
 
         sm_denom = tl.load(l_ptrs, mask=mask_j, cache_modifier=".cg") # [j]
         sm_score = tl.math.exp2((scores  - sm_denom[:, None]) * inv_ln2) # [j,k]

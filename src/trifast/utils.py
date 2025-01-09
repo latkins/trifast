@@ -9,22 +9,25 @@ def gen_tensors(
     use_mask: bool,
     device: torch.device,
     dtype: torch.dtype,
+    batch: int = 1,
     std: float = 1.0,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     q = torch.normal(
-        0, std, (h, n, n, d), device=device, dtype=dtype, requires_grad=True
+        0, std, (batch, h, n, n, d), device=device, dtype=dtype, requires_grad=True
     )
     k = torch.normal(
-        0, std, (h, n, n, d), device=device, dtype=dtype, requires_grad=True
+        0, std, (batch, h, n, n, d), device=device, dtype=dtype, requires_grad=True
     )
     v = torch.normal(
-        0, std, (h, n, n, d), device=device, dtype=dtype, requires_grad=True
+        0, std, (batch, h, n, n, d), device=device, dtype=dtype, requires_grad=True
     )
-    b = torch.normal(0, std, (h, n, n), device=device, dtype=dtype, requires_grad=True)
+    b = torch.normal(
+        0, std, (batch, h, n, n), device=device, dtype=dtype, requires_grad=True
+    )
     m = (
-        torch.randint(0, 2, (n, n), device=device, dtype=torch.bool)
+        torch.randint(0, 2, (batch, n, n), device=device, dtype=torch.bool)
         if use_mask
-        else torch.zeros((n, n), device=device, dtype=torch.bool)
+        else torch.zeros((batch, n, n), device=device, dtype=torch.bool)
     )
 
     return q, k, v, b, m

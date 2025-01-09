@@ -29,6 +29,7 @@ benchmark = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+
 [tool.uv]
 dev-dependencies = [
     "fastparquet>=2024.11.0",

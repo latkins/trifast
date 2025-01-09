@@ -37,50 +37,50 @@ def triangle_attention_simple(
 
 
 def attention_reference(
-    q: Float[torch.Tensor, "... h n n d"],
-    k: Float[torch.Tensor, "... h n n d"],
-    v: Float[torch.Tensor, "... h n n d"],
-    bias: Float[torch.Tensor, "... h n n"],
-    mask: Bool[torch.Tensor, "... n n"],
-) -> Float[torch.Tensor, "... h n n d"]:
+    q: Float[torch.Tensor, "b h n n d"],
+    k: Float[torch.Tensor, "b h n n d"],
+    v: Float[torch.Tensor, "b h n n d"],
+    bias: Float[torch.Tensor, "b h n n"],
+    mask: Bool[torch.Tensor, "b n n"],
+) -> Float[torch.Tensor, "b h n n d"]:
     mask_bias = neg_inf(q.dtype) * (mask).to(q.dtype)
     sm_scale = q.shape[-1] ** -0.5
 
-    q = rearrange(q, "... h i j d -> ... () i h j d")
-    k = rearrange(k, "... h i j d -> ... () i h d j")
-    v = rearrange(v, "... h i j d -> ... () i h j d")
+    q = rearrange(q, "b h i j d -> b i h j d")
+    k = rearrange(k, "b h i j d -> b i h d j")
+    v = rearrange(v, "b h i j d -> b i h j d")
 
-    bias = rearrange(bias, "... h i j -> ... () () h i j")
-    # mask_bias should be ... i 1 1 k e.g. broadcast over
-    mask_bias = rearrange(mask_bias, "... i j -> ... i () () j")
+    a = torch.matmul(q, k) * sm_scale  # b i h j k
 
-    a = torch.matmul(q, k) * sm_scale  # ... i h j k
+    bias = rearrange(bias, "b h i j -> b () h i j")
+    mask_bias = rearrange(mask_bias, "b i j -> b i () () j")
+
     a += mask_bias
     a += bias
 
     a = torch.softmax(a, dim=-1)
     a_v = torch.matmul(a, v)
 
-    o = rearrange(a_v, "... () i h j d -> ... h i j d")
+    o = rearrange(a_v, "b i h j d -> b h i j d")
 
     return o
 
 
 def triangle_self_attention_ds4s(
-    q: Float[torch.Tensor, "... h n n d"],
-    k: Float[torch.Tensor, "... h n n d"],
-    v: Float[torch.Tensor, "... h n n d"],
-    bias: Float[torch.Tensor, "... h n n"],
-    mask: Bool[torch.Tensor, "... n n"],
-) -> Float[torch.Tensor, "... h n n d"]:
+    q: Float[torch.Tensor, "b h n n d"],
+    k: Float[torch.Tensor, "b h n n d"],
+    v: Float[torch.Tensor, "b h n n d"],
+    bias: Float[torch.Tensor, "b h n n"],
+    mask: Bool[torch.Tensor, "b n n"],
+) -> Float[torch.Tensor, "b h n n d"]:
     mask_bias = neg_inf(q.dtype) * (mask).to(q.dtype)
 
-    q = rearrange(q, "... h i j d -> ... () i j h d")
-    k = rearrange(k, "... h i j d -> ... () i j h d")
-    v = rearrange(v, "... h i j d -> ... () i j h d")
+    q = rearrange(q, "b h i j d -> b i j h d")
+    k = rearrange(k, "b h i j d -> b i j h d")
+    v = rearrange(v, "b h i j d -> b i j h d")
 
-    mask_bias = rearrange(mask_bias, "... i j -> ... () i () () j")
-    bias = rearrange(bias, "... h i j -> ... () () h i j")
+    bias = rearrange(bias, "b h i j -> b () h i j")
+    mask_bias = rearrange(mask_bias, "b i j -> b i () () j")
     biases = [mask_bias, bias]
 
     orig_dtype = q.dtype
@@ -95,6 +95,6 @@ def triangle_self_attention_ds4s(
     else:
         o = DS4Sci_EvoformerAttention(q, k, v, biases)
 
-    o = rearrange(o, "... () i j h d -> ... h i j d")
+    o = rearrange(o, "b i j h d -> b h i j d")
 
     return o
