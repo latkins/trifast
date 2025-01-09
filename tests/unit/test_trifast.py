@@ -1,20 +1,19 @@
 import torch
 import pytest
+from einops import rearrange
 from trifast.torch import triangle_attention
 from trifast.equiv import attention_reference
 from trifast.utils import gen_tensors, clone_and_clear_grad, disable_tf32, enable_tf32
 
-from tests.utils import set_seed
+from tests.utils import (
+    set_seed,
+    compare_directions,
+    compare_relative_direction,
+    dot,
+    compare_values,
+)
 
 set_seed(1337)
-
-
-def compare_values(tri, pt, ref, msg="", eps=1e-4):
-    a = (tri.float() - ref.float()).abs().max().item()
-    b = (pt.float() - ref.float()).abs().max().item() + eps
-
-    # This factor of 3 is pretty arbitrary.
-    assert a <= 3 * b, f"{msg} value mismatch, tri: {a:.3e}, pt: {b:.3e}"
 
 
 dtype_eps = {
@@ -24,8 +23,10 @@ dtype_eps = {
 }
 
 
-@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float16, torch.bfloat16])
 @pytest.mark.parametrize("mask", [True, False])
+@pytest.mark.parametrize("bs", [1, 2])
+@pytest.mark.parametrize("std", [1.0, 2.0])
 @pytest.mark.parametrize(
     ("n, h, d"),
     [
@@ -34,12 +35,16 @@ dtype_eps = {
         (64, 1, 64),
         (16, 4, 128),
         *[(n, 4, 32) for n in range(17, 200, 1)],
-        (191, 4, 32)
+        (191, 4, 32),
     ],
 )
-def test_values(n: int, h: int, d: int, mask: bool, dtype: torch.dtype):
+def test_values(
+    n: int, h: int, d: int, mask: bool, bs: int, dtype: torch.dtype, std: float
+):
     device = torch.device("cuda")
-    q, k, v, b, m = gen_tensors(n, d, h, mask, device, dtype=torch.float32)
+    q, k, v, b, m = gen_tensors(
+        n, d, h, use_mask=mask, device=device, dtype=torch.float32, batch=bs, std=std
+    )
     torch.cuda.synchronize()
 
     o_ref = disable_tf32(attention_reference)(q, k, v, b, m)
@@ -65,53 +70,6 @@ def test_values(n: int, h: int, d: int, mask: bool, dtype: torch.dtype):
     torch.cuda.synchronize()
 
 
-def dot(a, b):
-    return torch.dot(a.float().flatten(), b.float().flatten())
-
-
-def cosine_similarity(a: torch.Tensor, b: torch.Tensor, eps=1e-8) -> float:
-    """
-    Flatten a and b, compute the dot product over
-    the product of their magnitudes, and return the scalar.
-    """
-    a_flat = a.flatten()
-    b_flat = b.flatten()
-    dot = torch.dot(a_flat, b_flat)
-    norm_a = torch.norm(a_flat)
-    norm_b = torch.norm(b_flat)
-    return (dot / (norm_a * norm_b + eps)).item()
-
-
-def compare_directions(tensor_kernel, tensor_pt, tensor_ref, msg="", threshold=0.99):
-    """
-    Compare directions (via dot product / cosine similarity).
-    Assert that both kernel and pt are above a threshold similarity to ref.
-    """
-    cs_kernel_ref = cosine_similarity(tensor_kernel.float(), tensor_ref.float())
-    cs_pt_ref = cosine_similarity(tensor_pt.float(), tensor_ref.float())
-
-    assert (
-        cs_kernel_ref > threshold
-    ), f"{msg} kernel->ref direction mismatch: {cs_kernel_ref:.3f}"
-    assert cs_pt_ref > threshold, f"{msg} pt->ref direction mismatch: {cs_pt_ref:.3f}"
-
-
-def compare_relative_direction(
-    tensor_kernel, tensor_pt, tensor_ref, msg="", ratio=0.99
-):
-    """
-    Make sure kernel->ref direction alignment is close to pt->ref direction alignment.
-    i.e. cos_sim(kernel, ref) >= ratio * cos_sim(pt, ref).
-    """
-    cs_kernel_ref = cosine_similarity(tensor_kernel.float(), tensor_ref.float())
-    cs_pt_ref = cosine_similarity(tensor_pt.float(), tensor_ref.float())
-
-    assert cs_kernel_ref >= ratio * cs_pt_ref, (
-        f"{msg} kernel->ref relative direction mismatch. "
-        f"Got cos_sim(kernel, ref)={cs_kernel_ref:.4f} vs. ratio * cos_sim(pt, ref)={ratio*cs_pt_ref:.4f}"
-    )
-
-
 def compare_dot(kernel_output, pytorch_output, ref_output, msg="", threshold=0.05):
     # threshold is how much worse tri can be than the pytorch version.
 
@@ -131,6 +89,7 @@ def compare_dot(kernel_output, pytorch_output, ref_output, msg="", threshold=0.0
     ), f"{msg} dot product mismatch: {error:.3f} tri: {kernel_score:.3f}, pt: {pt_score:.3f}"
 
 
+@pytest.mark.parametrize("bs", [1, 2])
 @pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16, torch.float32])
 @pytest.mark.parametrize("mask", [True, False])
 @pytest.mark.parametrize("std", [1.0, 2.0])
@@ -142,13 +101,16 @@ def compare_dot(kernel_output, pytorch_output, ref_output, msg="", threshold=0.0
         (64, 1, 64),
         (16, 4, 128),
         *[(n, 4, 32) for n in range(17, 200, 1)],
-        (512, 2, 32),
     ],
 )
-def test_vectors(n: int, h: int, d: int, mask: bool, dtype: torch.dtype, std: float):
+def test_vectors(
+    n: int, h: int, d: int, mask: bool, bs: int, dtype: torch.dtype, std: float
+):
     device = torch.device("cuda")
 
-    q, k, v, b, m = gen_tensors(n, d, h, mask, device, dtype=torch.float32, std=std)
+    q, k, v, b, m = gen_tensors(
+        n, d, h, mask, device, dtype=torch.float32, std=std, batch=bs
+    )
     torch.cuda.synchronize()
 
     o_ref = disable_tf32(attention_reference)(q, k, v, b, m)
@@ -185,3 +147,65 @@ def test_vectors(n: int, h: int, d: int, mask: bool, dtype: torch.dtype, std: fl
     compare_dot(db_kernel, db_pt, db_ref, "dB", threshold=0.01)
 
     torch.cuda.synchronize()
+
+
+class FakeModule(torch.nn.Module):
+    def __init__(self, h: int, d: int):
+        super().__init__()
+
+        self.h = h
+
+        self.q = torch.nn.Linear(d, h * d)
+        self.k = torch.nn.Linear(d, h * d)
+        self.v = torch.nn.Linear(d, h * d)
+        self.b = torch.nn.Linear(d, h)
+
+    def forward(self, x, mask):
+        q = rearrange(self.q(x), "... (h d) -> ... h d", h=self.h)
+        k = rearrange(self.k(x), "... (h d) -> ... h d", h=self.h)
+        v = rearrange(self.v(x), "... (h d) -> ... h d", h=self.h)
+        b = self.b(x)
+
+        return triangle_attention(q, k, v, b, mask)
+
+
+@pytest.mark.parametrize(
+    ("n, h, d, do_mask, bs, dtype"),
+    [
+        (16, 1, 16, False, 1, torch.float16),
+        (32, 1, 32, False, 1, torch.bfloat16),
+        (64, 1, 64, False, 4, torch.float32),
+    ],
+)
+def test_weight_updates(
+    n: int, h: int, d: int, do_mask: bool, bs: int, dtype: torch.dtype
+):
+    x = torch.randn((bs, n, n, d), device="cuda", dtype=dtype, requires_grad=True)
+
+    model = FakeModule(h, d).to("cuda", dtype)
+    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+    mask = (
+        torch.randint(0, 2, (bs, n, n), device="cuda", dtype=torch.bool)
+        if do_mask
+        else torch.zeros((bs, n, n), device="cuda", dtype=torch.bool)
+    )
+
+    orig_params = {k: v.clone() for k, v in model.named_parameters()}
+
+    for _ in range(5):
+        out = model(x, mask)
+
+        lbl = torch.randn_like(out) * 4
+
+        opt.zero_grad()
+        loss = torch.nn.functional.mse_loss(out, lbl)
+        loss.backward()
+        opt.step()
+
+    updated_params = dict(model.named_parameters())
+
+    for k in orig_params.keys():
+        assert not torch.all(
+            orig_params[k] == updated_params[k]
+        ), f"Parameter {k} did not update."
