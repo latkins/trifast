@@ -1,13 +1,12 @@
 import triton
 import torch
 from jaxtyping import Bool, Float
-from einops import rearrange, repeat
+from einops import rearrange
 
 import triton.testing
 
 from trifast.triton import (
     _fwd,
-    _bwd_preprocess,
     _bwd_kv,
     _bwd_q,
     _bwd_b,
@@ -26,7 +25,6 @@ class _triangle_attention(torch.autograd.Function):
     ) -> Float[torch.Tensor, "b h n n d"]:
         sm_scale = q.shape[-1] ** -0.5
 
-
         bs, h, _, n, dim = q.shape
 
         # TODO: Should also allow flattening arbitrary batch dims.
@@ -34,7 +32,6 @@ class _triangle_attention(torch.autograd.Function):
         k = rearrange(k, "b h ... -> (b h) ...").contiguous()
         v = rearrange(v, "b h ... -> (b h) ...").contiguous()
         b = rearrange(b, "b h ... -> (b h) ...").contiguous()
-
 
         # e.g. batch x head
         bh = q.shape[0]
@@ -105,17 +102,6 @@ class _triangle_attention(torch.autograd.Function):
         bh = q.shape[0]
 
         d = (o * do).sum(-1)
-
-        # d = torch.empty_like(l)
-        # pre_grid = lambda x: (triton.cdiv(n, x["BLOCK_J"]), n, bh)
-        #
-        # # fmt: off
-        # _bwd_preprocess[pre_grid](
-        #     o, o.stride(0), o.stride(1), o.stride(2), o.stride(3),
-        #     do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
-        #     d, d.stride(0), d.stride(1), d.stride(2),
-        #     N=n, H=h, DIM=dim,
-        # )
 
         # Do the actual backward pass.
         grid = lambda x: (triton.cdiv(n, x["BLOCK_K"]), n, bh)

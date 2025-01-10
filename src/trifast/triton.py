@@ -160,6 +160,7 @@ def _fwd(
     cache_dir=cache_dir,
     prune_configs_by={"early_config_prune": gen_bwd_kv_cfgs},
 )
+@triton.jit
 def _bwd_kv(
     d_ptr, stride_dh, stride_dm, stride_dn,
     q_ptr, stride_qh, stride_qm, stride_qn, stride_qd,
@@ -295,7 +296,6 @@ def _bwd_kv(
     cache_dir=cache_dir,
     prune_configs_by={"early_config_prune": gen_bwd_q_cfgs},
 )
-# fmt: off
 @triton.jit
 def _bwd_q(
     d_ptr, stride_dh, stride_dm, stride_dn,
