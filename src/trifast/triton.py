@@ -8,7 +8,6 @@ from trifast.autotune_helpers import (
     gen_fwd_cfgs,
     gen_bwd_q_cfgs,
     gen_bwd_kv_cfgs,
-    gen_bwd_pre_cfgs,
     gen_bwd_b_cfgs,
 )
 
@@ -21,11 +20,17 @@ cfgs = [
 
 
 # fmt: off
-@triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], cache_dir=cache_dir,
-          prune_configs_by={
-            "early_config_prune": gen_fwd_cfgs,
-})
+@triton.heuristics(
+    values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
+)
+@autotune(
+    configs=cfgs,
+    key=["H", "DIM", "CLOSEST_N"],
+    cache_dir=cache_dir,
+    prune_configs_by={
+        "early_config_prune": gen_fwd_cfgs,
+    },
+)
 @triton.jit
 def _fwd(
     o_ptr, stride_oh, stride_om, stride_on, stride_od,
@@ -141,88 +146,20 @@ def _fwd(
     lse = (scores_max * ln2) + tl.log(sm_denom)
 
     tl.store(lse_ptrs, lse, mask=mask_j)
+# fmt: on
 
-
-# bwd_pre_cfgs = [
-#     triton.Config(
-#         {"BLOCK_J": block_j},
-#         num_warps=warps,
-#         num_stages=stages,
-#     )
-#     for block_j in [16, 32, 64, 128]
-#     for warps in [1, 2, 4, 8]
-#     for stages in [1, 2, 3, 4, 5]
-# ]
-
-bwd_pre_cfgs = [
-    triton.Config({"BLOCK_J": 16}, 1, 1),
-    # triton.Config({"BLOCK_J": 32, "BLOCK_K": 16}, 1, 1),
-]
-
-
-#fmt: off
-@triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@autotune(configs=bwd_pre_cfgs, key=["H", "DIM", "CLOSEST_N"], cache_dir=cache_dir,
-          prune_configs_by={"early_config_prune": gen_bwd_pre_cfgs})
-
-@triton.jit
-def _bwd_preprocess(o_ptr, stride_oh, stride_oi, stride_oj, stride_od,
-                    do_ptr, stride_doh, stride_doi, stride_doj, stride_dod,
-                    d_ptr, stride_dh, stride_di, stride_dj,
-                    N, H, DIM: tl.constexpr,
-                    CLOSEST_N: tl.constexpr,
-                    BLOCK_J: tl.constexpr,
-                    ):
-
-    pid_h = tl.program_id(2)  # Parallelize along h
-    pid_i = tl.program_id(1)  # Parallelize along i
-    pid_j = tl.program_id(0)  # Parallelize over chunks of j
-
-    h_offset = pid_h
-    i_offset = pid_i
-    j_offset = pid_j * BLOCK_J # The max idx of the chunk of j.
-
-    o_block_ptr = tl.make_block_ptr(
-        o_ptr + (h_offset * stride_oh) + (i_offset * stride_oi),
-        shape=(N, DIM),
-        strides=(stride_oj, stride_od),
-        offsets=(j_offset, 0),
-        block_shape=(BLOCK_J, DIM),
-        order=(1, 0),
-    )
-
-    do_block_ptr = tl.make_block_ptr(
-        do_ptr + (h_offset * stride_doh) + (i_offset * stride_doi),
-        shape=(N, DIM),
-        strides=(stride_doj, stride_dod),
-        offsets=(j_offset, 0),
-        block_shape=(BLOCK_J, DIM),
-        order=(1, 0),
-    )
-
-    d_block_ptr = tl.make_block_ptr(
-        d_ptr + (h_offset * stride_dh) + (i_offset * stride_di),
-        shape=(N,),
-        strides=(stride_dj,),
-        offsets=(j_offset,),
-        block_shape=(BLOCK_J,),
-        order=(0,),
-    )
-
-
-    o_block = tl.load(o_block_ptr, boundary_check=(0,))
-    do_block = tl.load(do_block_ptr, boundary_check=(0,))
-
-    vals = tl.sum(do_block * o_block, axis=1)
-
-    tl.store(d_block_ptr, vals.to(tl.float32), boundary_check=(0,))
 
 # fmt: off
-@triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], reset_to_zero=["dk_ptr", "dv_ptr"],
-          cache_dir=cache_dir,
-          prune_configs_by={"early_config_prune": gen_bwd_kv_cfgs})
-@triton.jit
+@triton.heuristics(
+    values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
+)
+@autotune(
+    configs=cfgs,
+    key=["H", "DIM", "CLOSEST_N"],
+    reset_to_zero=["dk_ptr", "dv_ptr"],
+    cache_dir=cache_dir,
+    prune_configs_by={"early_config_prune": gen_bwd_kv_cfgs},
+)
 def _bwd_kv(
     d_ptr, stride_dh, stride_dm, stride_dn,
     q_ptr, stride_qh, stride_qm, stride_qn, stride_qd,
@@ -344,12 +281,21 @@ def _bwd_kv(
     dk_block *= sm_scale
     tl.store(dk_ptrs, dk_block.to(input_dtype), mask_k[:, None])
     tl.store(dv_ptrs, dv_block.to(input_dtype), mask_k[:, None])
+# fmt: on
 
 
 # fmt: off
-@triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], reset_to_zero=["dq_ptr"], cache_dir=cache_dir,
-          prune_configs_by={"early_config_prune": gen_bwd_q_cfgs})
+@triton.heuristics(
+    values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
+)
+@autotune(
+    configs=cfgs,
+    key=["H", "DIM", "CLOSEST_N"],
+    reset_to_zero=["dq_ptr"],
+    cache_dir=cache_dir,
+    prune_configs_by={"early_config_prune": gen_bwd_q_cfgs},
+)
+# fmt: off
 @triton.jit
 def _bwd_q(
     d_ptr, stride_dh, stride_dm, stride_dn,
@@ -453,11 +399,19 @@ def _bwd_q(
         mask_ptrs += BLOCK_K * stride_maskn
 
     tl.store(dq_ptrs, dq_block.to(input_dtype), mask=mask_j[:, None])
+# fmt: on
 
 # fmt: off
-@triton.heuristics(values={'CLOSEST_N': lambda args: 2 ** int(math.ceil(math.log2(args['N'])))})
-@autotune(configs=cfgs, key=["H", "DIM", "CLOSEST_N"], reset_to_zero=["db_ptr"], cache_dir=cache_dir,
-          prune_configs_by={"early_config_prune": gen_bwd_b_cfgs})
+@triton.heuristics(
+    values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
+)
+@autotune(
+    configs=cfgs,
+    key=["H", "DIM", "CLOSEST_N"],
+    reset_to_zero=["db_ptr"],
+    cache_dir=cache_dir,
+    prune_configs_by={"early_config_prune": gen_bwd_b_cfgs},
+)
 @triton.jit
 def _bwd_b(
     d_ptr, stride_dh, stride_dm, stride_dn,
@@ -567,3 +521,4 @@ def _bwd_b(
         do_ptrs += stride_dom * BLOCK_I
 
     tl.store(db_ptrs, db_block.to(input_dtype), mask=mask_j[:, None] & mask_k[None, :])
+# fmt: on
