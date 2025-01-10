@@ -401,6 +401,7 @@ def _bwd_q(
     tl.store(dq_ptrs, dq_block.to(input_dtype), mask=mask_j[:, None])
 # fmt: on
 
+
 # fmt: off
 @triton.heuristics(
     values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
