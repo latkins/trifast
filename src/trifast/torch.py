@@ -29,16 +29,11 @@ class _triangle_attention(torch.autograd.Function):
 
         bs, h, _, n, dim = q.shape
 
-        # expand mask along h dim -- it should be small enough to not matter.
-        # TODO: Fix this with proper indexing.
-        mask = repeat(mask, "b i j -> b h i j", h=h).contiguous()
-
         # TODO: Should also allow flattening arbitrary batch dims.
         q = rearrange(q, "b h ... -> (b h) ...").contiguous()
         k = rearrange(k, "b h ... -> (b h) ...").contiguous()
         v = rearrange(v, "b h ... -> (b h) ...").contiguous()
         b = rearrange(b, "b h ... -> (b h) ...").contiguous()
-        mask = rearrange(mask, "b h ... -> (b h) ...").contiguous()
 
 
         # e.g. batch x head
@@ -69,9 +64,6 @@ class _triangle_attention(torch.autograd.Function):
         b = rearrange(b, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
         l = rearrange(l, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
         o = rearrange(o, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
-        # Doubt anyone will look at ctx.mask, if you are, I didn't collapse it back to
-        # the orig shape. Sorry if this is confusing.
-        mask = rearrange(mask, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
 
         ctx.save_for_backward(q, k, v, b, mask, o, l)
         ctx.grid = grid
@@ -103,7 +95,6 @@ class _triangle_attention(torch.autograd.Function):
         o = rearrange(o, "b h ... -> (b h) ...")
         l = rearrange(l, "b h ... -> (b h) ...")
         do = rearrange(do, "b h ... -> (b h) ...")
-        mask = rearrange(mask, "b h ... -> (b h) ...")
 
         dq = torch.zeros_like(q)
         dk = torch.zeros_like(k)
@@ -191,7 +182,6 @@ class _triangle_attention(torch.autograd.Function):
         dk = rearrange(dk, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
         dv = rearrange(dv, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
         db = rearrange(db, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
-        dmask = rearrange(dmask, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
         return dq, dk, dv, db, dmask
 
 

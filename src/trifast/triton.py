@@ -50,6 +50,8 @@ def _fwd(
     inv_ln2: tl.constexpr = 1.4426950408889634 # = 1.0 / ln(2)
     ln2: tl.constexpr = 0.6931471824645996 # = ln(2)
 
+    # One mask per batch item, not repeated per head.
+    mask_start_h = pid_h // H
     start_h = pid_h
     start_i = pid_i
     start_j = pid_j * BLOCK_J
@@ -76,7 +78,7 @@ def _fwd(
     base_lse_ptr = lse_ptr + (start_h * stride_lseh) + (start_i * stride_lsem)
     lse_ptrs = base_lse_ptr + (j_idxs * stride_lsen) # [j]
 
-    base_mask_ptr = mask_ptr + (start_h * stride_maskh)
+    base_mask_ptr = mask_ptr + (mask_start_h * stride_maskh)
     mask_ptrs= base_mask_ptr + (start_i * stride_maskm) + (k_idxs * stride_maskn) # [k]
 
     base_o_ptr = o_ptr + (start_h * stride_oh) + (start_i * stride_om)
@@ -97,7 +99,7 @@ def _fwd(
 
         kt_block = tl.load(kt_ptrs, mask_k[None, :])  # [d,k]
         b_block = tl.load(b_ptrs,  mask_j[:, None] | mask_k[None, :])  # [j,k]
-        m_block = tl.load(mask_ptrs, mask_k) # [k]
+        m_block = tl.load(mask_ptrs, mask_k, cache_modifier=".cg") # [k]
 
         scores = b_block.to(tl.float32)
         scores = tl.dot(q_block, kt_block, scores, input_precision="ieee")  # [j,k]
@@ -247,6 +249,8 @@ def _bwd_kv(
 
     inv_ln2: tl.constexpr = 1.4426950408889634 # = 1.0 / ln(2),
 
+    # One mask per batch item, not repeated per head.
+    mask_start_h = pid_h // H
     start_h = pid_h
     start_i = pid_i
     start_j = 0 # we iterate over j, so each pid starts at 0
@@ -273,7 +277,7 @@ def _bwd_kv(
     base_l_ptr = l_ptr + (start_h * stride_lh) + (start_i * stride_lm)
     l_ptrs = base_l_ptr + (j_idxs * stride_ln) # [j]
 
-    base_mask_ptr = m_ptr + (start_h * stride_mh)
+    base_mask_ptr = m_ptr + (mask_start_h * stride_mh)
     mask_ptrs= base_mask_ptr + (start_i * stride_mm) + (k_idxs * stride_mn) # [k]
 
     base_do_ptr = do_ptr + (start_h * stride_doh) + (start_i * stride_dom)
@@ -294,7 +298,7 @@ def _bwd_kv(
     vt_block = tl.load(vt_ptrs, mask_k[None, :]) # [d,k]
     kt_block = tl.load(kt_ptrs, mask_k[None, :]) # [d,k]
     kt_block = kt_block * tl.full([1], value=sm_scale, dtype=input_dtype) # [k,d]
-    m_block = tl.load(mask_ptrs, mask_k) # [k]
+    m_block = tl.load(mask_ptrs, mask_k, cache_modifier=".cg") # [k]
 
     # accumulate over j for dk/dv
     dk_block = tl.zeros([BLOCK_K, DIM], dtype=tl.float32)
@@ -370,6 +374,8 @@ def _bwd_q(
     pid_h = tl.program_id(2)
     inv_ln2: tl.constexpr = 1.4426950408889634 # = 1.0 / ln(2)
 
+    # One mask per batch item, not repeated per head.
+    mask_start_h = pid_h // H
     start_h = pid_h
     start_i = pid_i
     start_j = pid_j * BLOCK_J
@@ -396,7 +402,7 @@ def _bwd_q(
     base_l_ptr = l_ptr + (start_h * stride_lh) + (start_i * stride_lm)
     l_ptrs = base_l_ptr + (j_idxs * stride_ln) # [j]
 
-    base_mask_ptr = mask_ptr + (start_h * stride_maskh)
+    base_mask_ptr = mask_ptr + (mask_start_h * stride_maskh)
     mask_ptrs= base_mask_ptr + (start_i * stride_maskm) + (k_idxs * stride_maskn) # [k]
 
     base_d_ptr = d_ptr + (start_h * stride_dh) + (start_i * stride_dm)
@@ -423,7 +429,7 @@ def _bwd_q(
         mask_k = (k_idxs + start_k) < N
 
         b_block = tl.load(b_ptrs, mask_j[:, None] | mask_k[None, :]).to(tl.float32) # [j,k]
-        m_block = tl.load(mask_ptrs, mask_k) # [k]
+        m_block = tl.load(mask_ptrs, mask_k, cache_modifier=".cg") # [k]
         k_block = tl.load(k_ptrs, mask_k[:, None]) # [k,d]
         k_block = k_block * tl.full([1], value=sm_scale, dtype=input_dtype) # [j,d]
 
@@ -479,6 +485,8 @@ def _bwd_b(
 
     inv_ln2: tl.constexpr = 1.4426950408889634 # = 1.0 / ln(2),
 
+    # One mask per batch item, not repeated per head.
+    mask_start_h = pid_h // H
     start_h = pid_h
     start_i = 0 # we iterate over j, so each pid starts at 0
     start_j = pid_j * BLOCK_J
@@ -505,7 +513,7 @@ def _bwd_b(
     base_l_ptr = l_ptr + (start_h * stride_lh)
     l_ptrs = base_l_ptr + (j_idxs * stride_ln) # [j]
 
-    base_mask_ptr = m_ptr + (start_h * stride_mh)
+    base_mask_ptr = m_ptr + (mask_start_h * stride_mh)
     mask_ptrs= base_mask_ptr + (k_idxs * stride_mn) # [k]
 
     base_do_ptr = do_ptr + (start_h * stride_doh)
