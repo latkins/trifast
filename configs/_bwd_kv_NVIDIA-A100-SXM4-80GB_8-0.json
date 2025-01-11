@@ -104,7 +104,7 @@
             "BLOCK_J": 32,
             "BLOCK_K": 16
         },
-        "num_warps": 1,
+        "num_warps": 2,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -725,7 +725,7 @@
             "BLOCK_K": 16
         },
         "num_warps": 2,
-        "num_stages": 2,
+        "num_stages": 3,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -755,7 +755,7 @@
             "BLOCK_K": 32
         },
         "num_warps": 1,
-        "num_stages": 2,
+        "num_stages": 3,
         "num_ctas": 1,
         "maxnreg": null
     },

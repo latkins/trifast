@@ -12,7 +12,6 @@ cache_dir = Path(__file__).parent.parent.parent / "configs"
 
 FORCE_RETUNE = os.getenv("TRIFAST_FORCE_RETUNE", False)
 FORCE_RETUNE = os.getenv('TRIFAST_FORCE_RETUNE', '0').lower() in ('1', 'true', 'yes', 'on')
-FORCE_RETUNE = 1
 
 
 device_capability = torch.cuda.get_device_capability()
