@@ -241,10 +241,10 @@ bwd_q_lookup = get_config_lookup("_bwd_q")
 bwd_b_lookup = get_config_lookup("_bwd_b")
 
 
-prune_fwd = partial(prune_configs, lookup=fwd_lookup, n_neighbours=4)
-prune_bwd_kv = partial(prune_configs, lookup=bwd_kv_lookup, n_neighbours=4)
-prune_bwd_q = partial(prune_configs, lookup=bwd_q_lookup, n_neighbours=4)
-prune_bwd_b = partial(prune_configs, lookup=bwd_b_lookup, n_neighbours=4)
+prune_fwd = partial(prune_configs, lookup=fwd_lookup, n_neighbours=1)
+prune_bwd_kv = partial(prune_configs, lookup=bwd_kv_lookup, n_neighbours=1)
+prune_bwd_q = partial(prune_configs, lookup=bwd_q_lookup, n_neighbours=1)
+prune_bwd_b = partial(prune_configs, lookup=bwd_b_lookup, n_neighbours=1)
 
 
 configs = [

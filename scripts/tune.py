@@ -44,10 +44,10 @@ def parse_int_list(value: str) -> list[int]:
 
 def tune(min_n, max_n, heads, dims, dtypes):
     ns = [2**i for i in range(int(log2(min_n)), int(log2(max_n)) + 1)]
-    for n in ns:
-        for dtype in dtypes:
-            for h in heads:
-                for d in dims:
+    for d in dims:
+        for h in heads:
+            for n in ns:
+                for dtype in dtypes:
                     print(f"Tuning: N: {n}, H: {h}, D: {d}, dtype: {dtype}")
                     q, k, v, bias, mask = gen_tensors(
                         n,
@@ -94,7 +94,7 @@ if __name__ == "__main__":
         "--d",
         type=parse_int_list,
         help='List of dims (comma-separated integers, e.g., "16,32,64")',
-        default=[16],
+        default=[32],
     )
 
     args = parser.parse_args()
