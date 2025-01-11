@@ -5,31 +5,25 @@ import triton.testing
 import triton.language as tl
 from trifast.autotune import autotune
 from trifast.autotune_helpers import (
-    gen_fwd_cfgs,
-    gen_bwd_q_cfgs,
-    gen_bwd_kv_cfgs,
-    gen_bwd_b_cfgs,
+    configs,
+    prune_fwd,
+    prune_bwd_kv,
+    prune_bwd_q,
+    prune_bwd_b,
+    FORCE_RETUNE
 )
-
-cache_dir = Path(__file__).parent.parent.parent / "configs"
-
-cfgs = [
-    triton.Config({"BLOCK_J": 16, "BLOCK_K": 16}, 1, 1),
-    triton.Config({"BLOCK_J": 32, "BLOCK_K": 16}, 1, 1),
-]
-
 
 # fmt: off
 @triton.heuristics(
     values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
 )
 @autotune(
-    configs=cfgs,
+    configs=configs,
     key=["H", "DIM", "CLOSEST_N"],
-    cache_dir=cache_dir,
     prune_configs_by={
-        "early_config_prune": gen_fwd_cfgs,
+        "early_config_prune": prune_fwd,
     },
+    force_retune=FORCE_RETUNE,
 )
 @triton.jit
 def _fwd(
@@ -154,11 +148,11 @@ def _fwd(
     values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
 )
 @autotune(
-    configs=cfgs,
+    configs=configs,
     key=["H", "DIM", "CLOSEST_N"],
     reset_to_zero=["dk_ptr", "dv_ptr"],
-    cache_dir=cache_dir,
-    prune_configs_by={"early_config_prune": gen_bwd_kv_cfgs},
+    prune_configs_by={"early_config_prune": prune_bwd_kv},
+    force_retune=FORCE_RETUNE,
 )
 @triton.jit
 def _bwd_kv(
@@ -290,11 +284,11 @@ def _bwd_kv(
     values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
 )
 @autotune(
-    configs=cfgs,
+    configs=configs,
     key=["H", "DIM", "CLOSEST_N"],
-    reset_to_zero=["dq_ptr"],
-    cache_dir=cache_dir,
-    prune_configs_by={"early_config_prune": gen_bwd_q_cfgs},
+    reset_to_zero=["dq_ptr", "d_ptr"],
+    prune_configs_by={"early_config_prune": prune_bwd_q},
+    force_retune=FORCE_RETUNE,
 )
 @triton.jit
 def _bwd_q(
@@ -305,6 +299,7 @@ def _bwd_q(
     b_ptr, stride_bh, stride_bm, stride_bn,
     l_ptr, stride_lh, stride_lm, stride_ln,
     mask_ptr, stride_maskh, stride_maskm, stride_maskn,
+    o_ptr, stride_oh, stride_om, stride_on, stride_od,
     do_ptr, stride_doh, stride_dom, stride_don, stride_dod,
     dq_ptr, stride_dqh, stride_dqm, stride_dqn, stride_dqd,
     sm_scale,
@@ -360,12 +355,19 @@ def _bwd_q(
     base_do_ptr = do_ptr + (start_h * stride_doh) + (start_i * stride_dom)
     do_ptrs = base_do_ptr + (j_idxs[:, None] * stride_don) + (d_idxs[None, :] * stride_dod) # [j,d]
 
+    base_o_ptr = o_ptr + (start_h * stride_oh) + (start_i * stride_om)
+    o_ptrs = base_o_ptr + (j_idxs[:, None] * stride_on) + (d_idxs[None, :] * stride_od) # [j,d]
+
     mask_j = j_idxs < N
 
     q_block = tl.load(q_ptrs, mask_j[:, None]) # [j,d]
     sm_denom = tl.load(l_ptrs, mask_j) # [j]
-    delta = tl.load(d_ptrs, mask_j) # [j]
     do_block = tl.load(do_ptrs, mask_j[:, None]) # [j,d]
+    o_block = tl.load(o_ptrs, mask_j[:, None]) # [j,d]
+
+    delta = tl.sum(o_block * do_block, axis=1) # [j]
+
+    tl.store(d_ptrs, delta.to(input_dtype), mask=mask_j)
 
     dq_block = tl.zeros([BLOCK_J, DIM], dtype=tl.float32)
 
@@ -407,11 +409,11 @@ def _bwd_q(
     values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
 )
 @autotune(
-    configs=cfgs,
+    configs=configs,
     key=["H", "DIM", "CLOSEST_N"],
     reset_to_zero=["db_ptr"],
-    cache_dir=cache_dir,
-    prune_configs_by={"early_config_prune": gen_bwd_b_cfgs},
+    prune_configs_by={"early_config_prune": prune_bwd_b},
+    force_retune=FORCE_RETUNE,
 )
 @triton.jit
 def _bwd_b(

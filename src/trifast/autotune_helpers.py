@@ -1,326 +1,246 @@
+import os
+from collections import defaultdict
+import torch
+import json
 import triton
+from pathlib import Path
 from functools import partial
 
 
-def get_neighbors(current, allowed_list):
-    """Get the next lower and higher values from allowed list"""
-    idx = allowed_list.index(current)
-    prev_val = allowed_list[idx - 1] if idx > 0 else current
-    next_val = allowed_list[idx + 1] if idx < len(allowed_list) - 1 else current
-    return [prev_val, current, next_val]
+# optional env var.
+cache_dir = Path(__file__).parent.parent.parent / "configs"
+
+FORCE_RETUNE = os.getenv("TRIFAST_FORCE_RETUNE", False)
+FORCE_RETUNE = 1
 
 
-def gen_cfgs(configs, named_args, *, base_configs, **kwargs):
-    q = named_args["q_ptr"]
+device_capability = torch.cuda.get_device_capability()
+device_capability = f"{device_capability[0]}-{device_capability[1]}"
 
-    dtype = q.dtype
-    heads, n, _, dim = q.shape
+device_name = torch.cuda.get_device_name().replace(" ", "-")
 
-    # Allowed values
-    allowed = {
-        "block_j": [16, 32, 64, 128, 256],
-        "block_k": [16, 32, 64, 128, 256],
-        "warps": [1, 2, 4, 8, 16],
-        "stages": [1, 2, 3, 4, 5, 6],
+# Allowed values -> should be compute cap dependant?
+allowed = {
+    "block_j": [16, 32, 64, 128, 256],
+    "block_k": [16, 32, 64, 128, 256],
+    "warps": [1, 2, 4, 8],
+    "stages": [1, 2, 3, 4, 5, 6],
+}
+
+
+def config_to_dict(config: triton.Config) -> dict:
+    # This assume we are not making use of `pre_hook` in the `triton.Config`
+    return {
+        "kwargs": config.kwargs,
+        "num_warps": config.num_warps,
+        "num_stages": config.num_stages,
+        "num_ctas": config.num_ctas,
+        "maxnreg": config.maxnreg,
     }
 
+
+def dict_to_config(d: dict) -> triton.Config:
+    return triton.Config(
+        kwargs=d["kwargs"],
+        num_warps=d["num_warps"],
+        num_stages=d["num_stages"],
+        num_ctas=d["num_ctas"],
+        maxnreg=d["maxnreg"],
+    )
+
+
+def get_neighbors(current: int, allowed: list[int], n_neighbours: int = 1) -> list[int]:
+    """Get the next lower and higher values from allowed list"""
+    idx = allowed.index(current)
+    return list(set(allowed[idx - n_neighbours : idx + n_neighbours + 1]))
+
+
+# THIS IS COMICALLY BRITTLE. RELIES ON THE ORDER OF KEYS PASSED TO AUTOTUNE.
+def parse_config_key(key: str) -> dict:
+    h, dim, n, dtype, *_ = key.split("_")
+
+    h = int(h)
+    dim = int(dim)
+    n = int(n)
+
+    return {"h": h, "dim": dim, "N": n, "dtype": dtype}
+
+
+def parse_config_file(json_data):
+    # dtype -> h -> dim -> n -> config
+    lookup = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+
+    for k, v in json_data.items():
+        parsed = parse_config_key(k)
+        lookup[parsed["dtype"]][parsed["h"]][parsed["dim"]][parsed["N"]] = (
+            dict_to_config(v)
+        )
+
+    return lookup
+
+
+def get_config_lookup(fn_name: str):
+    file_path = cache_dir / f"{fn_name}_{device_name}_{device_capability}.json"
+
+    if not file_path.exists():
+        json_data = {}
+
+    else:
+        with file_path.open("r") as f:
+            json_data = json.load(f)
+
+    lookup = parse_config_file(json_data)
+
+    return lookup
+
+
+def get_nearest_config(
+    lookup: dict, dtype: str, h: int, dim: int, n: int
+) -> dict | None:
+    try:
+        config = lookup[dtype][h][dim][n]
+    except KeyError:
+        pass
+    else:
+        return config
+
+    if dtype not in lookup:
+        return None
+
+    h_dict = lookup[dtype].get(h)
+    if h_dict is None:
+        # Fall back to nearest h
+        h_values = sorted(lookup[dtype].keys())
+        h_idx = None
+        for idx, val in enumerate(h_values):
+            if val >= h:
+                h_idx = idx
+                break
+        if h_idx is None:
+            return None
+        h_dict = lookup[dtype][h_values[h_idx]]
+
+    dim_dict = h_dict.get(dim)
+    if dim_dict is None:
+        # Fall back to nearest dim
+        dim_values = sorted(h_dict.keys())
+        dim_idx = None
+        for idx, val in enumerate(dim_values):
+            if val >= dim:
+                dim_idx = idx
+                break
+        if dim_idx is None:
+            return None
+        dim_dict = h_dict[dim_values[dim_idx]]
+
+    config = dim_dict.get(n)
+    if config is not None:
+        return config
+
+    # Fall back to nearest n
+    n_values = sorted(dim_dict.keys())
+    n_idx = None
+    for idx, val in enumerate(n_values):
+        if val >= n:
+            n_idx = idx
+            break
+    if n_idx is None:
+        return None
+
+    return dim_dict[n_values[n_idx]]
+
+
+def block_valid(block: int, n: int, allowed: list[int]) -> bool:
+    # n < 16, block > 16 invalid
+    # n 128, block > 128 invalid
+    # n > 256 all blocks valid
+
+    if n < allowed[0]:
+        return block <= allowed[0]
+    elif n > allowed[-1]:
+        return True
+
+    return block <= 2 * n
+
+
+def prune_configs(configs, named_args, *, lookup, n_neighbours: int, **kwargs):
+    q = named_args["q_ptr"]
+
+    dtype = str(q.dtype)
+    h, n, _, dim = q.shape
+
+    config = lookup[dtype][h][dim].get(n, None)
+
+    # We have an exact match, so just use that, unless we FORCE_RETUNE.
+    if config is not None and not FORCE_RETUNE:
+        return config
+
     # Find the closest matching configuration
-    def find_closest_config():
-        # First try exact match
-        exact_match = base_configs.get((heads, dim, n, dtype))
-        if exact_match:
-            return exact_match
+    starting_config = get_nearest_config(lookup, dtype, h, dim, n)
 
-        # For bfloat16 and float32, try to match based on n with same heads/dim
-        if dtype in ["torch.bfloat16", "torch.float32"]:
-            configs = [
-                (k, v)
-                for k, v in base_configs.items()
-                if k[0] == heads and k[1] == dim and k[3] == dtype
-            ]
-            if configs:
-                # Find closest n
-                closest = min(configs, key=lambda x: abs(x[0][2] - n))
-                return closest[1]
+    # If we don't have a starting config, apply some heuristics.
+    if starting_config is None:
+        # If we are < smallest allowed value, only allow smallest allowed block_j / block_k.
+        pruned_configs = []
+        for config in configs:
+            smaller_than_min = n < allowed["block_j"][0] or n < allowed["block_k"][0]
+            bigger_than_max = n > allowed["block_j"][-1] or n > allowed["block_k"][-1]
+            # Don't allow block_j/block_k > 2x our size, unless we are already at the max, or are under the min..
 
-        # If still no match, find most similar configuration
-        if dtype == "torch.bfloat16":
-            if heads == 1:
-                return base_configs[(1, 32, 16, "torch.bfloat16")]
-            return base_configs[(4, 32, 128, "torch.bfloat16")]
-        elif dtype == "torch.float32":
-            return base_configs[(4, 32, 128, "torch.float32")]
-        else:
-            return base_configs[(4, 32, 32, "torch.float16")]
+            if not block_valid(config.kwargs["BLOCK_J"], n, allowed["block_j"]):
+                continue
 
-    # Get base configuration
-    base_params = find_closest_config()
+            if not block_valid(config.kwargs["BLOCK_K"], n, allowed["block_k"]):
+                continue
 
-    # Generate variants
-    variants = []
-    for block_j in get_neighbors(base_params["block_j"], allowed["block_j"]):
-        for block_k in get_neighbors(base_params["block_k"], allowed["block_k"]):
-            for warps in get_neighbors(base_params["warps"], allowed["warps"]):
-                for stages in get_neighbors(base_params["stages"], allowed["stages"]):
-                    # We should be able to skip values here where blocks are > n, if there is a more
-                    # appropriate value in the allowed values.
-                    # e.g. if N is 16, we shouldn't allow block_size > 16.
-                    variant = triton.Config(
-                        kwargs={
-                            "BLOCK_J": block_j,
-                            "BLOCK_K": block_k,
-                        },
-                        num_warps=warps,
-                        num_stages=stages,
-                    )
-                    if variant not in variants:
-                        variants.append(variant)
+        return configs
 
-    return variants
+    pruned_configs = []
+    # limit configs to those within n_neighbours of the starting config
+    block_j = starting_config.kwargs["BLOCK_J"]
+    block_k = starting_config.kwargs["BLOCK_K"]
+    num_warps = starting_config.num_warps
+    num_stages = starting_config.num_stages
+    for config in configs:
+        if abs(block_j - config.kwargs["BLOCK_J"]) > n_neighbours:
+            continue
+        if abs(block_k - config.kwargs["BLOCK_K"]) > n_neighbours:
+            continue
+        if abs(num_warps - config.num_warps) > n_neighbours:
+            continue
+        if abs(num_stages - config.num_stages) > n_neighbours:
+            continue
+
+        if not block_valid(config.kwargs["BLOCK_J"], n, allowed["block_j"]):
+            continue
+        if not block_valid(config.kwargs["BLOCK_K"], n, allowed["block_k"]):
+            continue
+
+        pruned_configs.append(config)
+
+    return pruned_configs
 
 
-fwd_base_cfgs = {
-    (4, 32, 32, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 32,
-        "warps": 2,
-        "stages": 1,
-    },
-    (4, 32, 64, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 32,
-        "warps": 2,
-        "stages": 1,
-    },
-    (4, 32, 128, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 32,
-        "warps": 2,
-        "stages": 2,
-    },
-    (4, 32, 256, "torch.bfloat16"): {
-        "block_j": 64,
-        "block_k": 32,
-        "warps": 4,
-        "stages": 2,
-    },
-    (4, 32, 512, "torch.bfloat16"): {
-        "block_j": 128,
-        "block_k": 32,
-        "warps": 4,
-        "stages": 2,
-    },
-    (4, 32, 1024, "torch.bfloat16"): {
-        "block_j": 128,
-        "block_k": 32,
-        "warps": 4,
-        "stages": 2,
-    },
-    (4, 32, 2048, "torch.bfloat16"): {
-        "block_j": 128,
-        "block_k": 32,
-        "warps": 4,
-        "stages": 1,
-    },
-    (4, 32, 32, "torch.float32"): {
-        "block_j": 16,
-        "block_k": 32,
-        "warps": 4,
-        "stages": 1,
-    },
-    (4, 32, 64, "torch.float32"): {
-        "block_j": 16,
-        "block_k": 16,
-        "warps": 2,
-        "stages": 2,
-    },
-    (4, 32, 128, "torch.float32"): {
-        "block_j": 32,
-        "block_k": 16,
-        "warps": 2,
-        "stages": 2,
-    },
-    (4, 32, 256, "torch.float32"): {
-        "block_j": 64,
-        "block_k": 32,
-        "warps": 4,
-        "stages": 3,
-    },
-    (4, 32, 512, "torch.float32"): {
-        "block_j": 64,
-        "block_k": 16,
-        "warps": 4,
-        "stages": 1,
-    },
-    (4, 32, 1024, "torch.float32"): {
-        "block_j": 128,
-        "block_k": 16,
-        "warps": 4,
-        "stages": 1,
-    },
-    (4, 32, 2048, "torch.float32"): {
-        "block_j": 64,
-        "block_k": 32,
-        "warps": 4,
-        "stages": 3,
-    },
-    (4, 32, 32, "torch.float16"): {
-        "block_j": 16,
-        "block_k": 32,
-        "warps": 1,
-        "stages": 1,
-    },
-    (1, 16, 16, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 16,
-        "warps": 2,
-        "stages": 5,
-    },
-    (1, 32, 16, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 16,
-        "warps": 2,
-        "stages": 2,
-    },
-    (1, 64, 16, "torch.bfloat16"): {
-        "block_j": 16,
-        "block_k": 16,
-        "warps": 1,
-        "stages": 3,
-    },
-}
+fwd_lookup = get_config_lookup("_fwd")
+bwd_kv_lookup = get_config_lookup("_bwd_kv")
+bwd_q_lookup = get_config_lookup("_bwd_q")
+bwd_b_lookup = get_config_lookup("_bwd_b")
 
 
-gen_fwd_cfgs = partial(gen_cfgs, base_configs=fwd_base_cfgs)
-
-# qkv can mostly use the same cfgs due to similar compute pattern
-bwd_kv_cfgs = {
-    (4, 32, 32, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 32,
-        "warps": 2,
-        "stages": 1,
-    },
-    (4, 32, 64, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 32,
-        "warps": 2,
-        "stages": 1,
-    },
-    (4, 32, 128, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 32,
-        "warps": 2,
-        "stages": 2,
-    },
-    (4, 32, 256, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 64,
-        "warps": 4,
-        "stages": 2,
-    },
-    (4, 32, 512, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 128,
-        "warps": 4,
-        "stages": 2,
-    },
-    (4, 32, 1024, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 128,
-        "warps": 4,
-        "stages": 2,
-    },
-    (4, 32, 2048, "torch.bfloat16"): {
-        "block_j": 32,
-        "block_k": 128,
-        "warps": 4,
-        "stages": 1,
-    },
-    (4, 32, 32, "torch.float32"): {
-        "block_j": 32,
-        "block_k": 16,
-        "warps": 4,
-        "stages": 1,
-    },
-    (4, 32, 64, "torch.float32"): {
-        "block_j": 16,
-        "block_k": 16,
-        "warps": 2,
-        "stages": 2,
-    },
-    (4, 32, 128, "torch.float32"): {
-        "block_j": 16,
-        "block_k": 32,
-        "warps": 2,
-        "stages": 2,
-    },
-    (4, 32, 256, "torch.float32"): {
-        "block_j": 32,
-        "block_k": 64,
-        "warps": 4,
-        "stages": 3,
-    },
-    (4, 32, 512, "torch.float32"): {
-        "block_j": 16,
-        "block_k": 64,
-        "warps": 4,
-        "stages": 1,
-    },
-    (4, 32, 1024, "torch.float32"): {
-        "block_j": 16,
-        "block_k": 128,
-        "warps": 4,
-        "stages": 1,
-    },
-    (4, 32, 2048, "torch.float32"): {
-        "block_j": 32,
-        "block_k": 64,
-        "warps": 4,
-        "stages": 3,
-    },
-    (4, 32, 32, "torch.float16"): {
-        "block_j": 32,
-        "block_k": 16,
-        "warps": 1,
-        "stages": 1,
-    },
-    (1, 16, 16, "torch.bfloat16"): {
-        "block_j": 16,
-        "block_k": 32,
-        "warps": 2,
-        "stages": 5,
-    },
-    (1, 32, 16, "torch.bfloat16"): {
-        "block_j": 16,
-        "block_k": 32,
-        "warps": 2,
-        "stages": 2,
-    },
-    (1, 64, 16, "torch.bfloat16"): {
-        "block_j": 16,
-        "block_k": 16,
-        "warps": 1,
-        "stages": 3,
-    },
-}
-gen_bwd_kv_cfgs = partial(gen_cfgs, base_configs=bwd_kv_cfgs)
-
-# q also loops of K, copy fwd for now.
-bwd_q_cfgs = fwd_base_cfgs.copy()
-gen_bwd_q_cfgs = partial(gen_cfgs, base_configs=bwd_q_cfgs)
-
-bwd_b_cfgs = fwd_base_cfgs.copy()
-gen_bwd_b_cfgs = partial(gen_cfgs, base_configs=bwd_b_cfgs)
+prune_fwd = partial(prune_configs, lookup=fwd_lookup, n_neighbours=2)
+prune_bwd_kv = partial(prune_configs, lookup=bwd_kv_lookup, n_neighbours=2)
+prune_bwd_q = partial(prune_configs, lookup=bwd_q_lookup, n_neighbours=2)
+prune_bwd_b = partial(prune_configs, lookup=bwd_b_lookup, n_neighbours=2)
 
 
-gen_bwd_pre_cfgs = lambda *args, **kwargs: [
+configs = [
     triton.Config(
-        {"BLOCK_J": block_j},
+        kwargs={"BLOCK_J": block_j, "BLOCK_K": block_k},
         num_warps=warps,
         num_stages=stages,
     )
-    for block_j in [16, 32, 64]
-    for warps in [1, 2, 4]
-    for stages in [1, 2, 3]
+    for block_j in allowed["block_j"]
+    for block_k in allowed["block_k"]
+    for warps in allowed["warps"]
+    for stages in allowed["stages"]
 ]

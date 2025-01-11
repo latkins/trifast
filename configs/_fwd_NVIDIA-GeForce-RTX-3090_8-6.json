@@ -1,4 +1,64 @@
 {
+    "1_16_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
+        },
+        "num_warps": 2,
+        "num_stages": 3,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_32_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
+        },
+        "num_warps": 2,
+        "num_stages": 3,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_64_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
+        },
+        "num_warps": 2,
+        "num_stages": 2,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_16_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
+        },
+        "num_warps": 1,
+        "num_stages": 3,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_32_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
+        },
+        "num_warps": 1,
+        "num_stages": 2,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_64_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 16
+        },
+        "num_warps": 2,
+        "num_stages": 2,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
     "1_16_32_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 16,
@@ -14,8 +74,8 @@
             "BLOCK_J": 16,
             "BLOCK_K": 32
         },
-        "num_warps": 1,
-        "num_stages": 1,
+        "num_warps": 2,
+        "num_stages": 3,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -59,129 +119,9 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_16_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "1_32_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "1_64_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
-        },
-        "num_warps": 2,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_16_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_32_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
-        },
-        "num_warps": 2,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_64_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "1_16_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 64
-        },
-        "num_warps": 1,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "1_32_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 64
-        },
-        "num_warps": 1,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "1_64_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_16_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 64
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_32_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 64
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_64_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
     "1_16_64_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
-            "BLOCK_J": 16,
+            "BLOCK_J": 32,
             "BLOCK_K": 64
         },
         "num_warps": 2,
@@ -191,8 +131,8 @@
     },
     "1_32_64_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 64
+            "BLOCK_J": 32,
+            "BLOCK_K": 32
         },
         "num_warps": 2,
         "num_stages": 2,
@@ -201,10 +141,10 @@
     },
     "1_64_64_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
+            "BLOCK_J": 32,
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -239,7 +179,7 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_16_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "1_16_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 64
@@ -249,9 +189,19 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_32_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "1_32_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
+            "BLOCK_K": 64
+        },
+        "num_warps": 2,
+        "num_stages": 2,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_64_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 16,
             "BLOCK_K": 64
         },
         "num_warps": 2,
@@ -259,7 +209,7 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_64_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "4_16_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 16,
             "BLOCK_K": 32
@@ -269,27 +219,17 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "4_16_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "4_32_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 64
+            "BLOCK_J": 16,
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
-    "4_32_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_64_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "4_64_64_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 32
@@ -342,9 +282,9 @@
     "4_32_128_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 64
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -359,7 +299,7 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_16_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "1_16_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 64
@@ -369,27 +309,27 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_32_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "1_32_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 32
         },
-        "num_warps": 1,
-        "num_stages": 2,
+        "num_warps": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_64_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "1_64_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_J": 16,
+            "BLOCK_K": 16
         },
         "num_warps": 1,
-        "num_stages": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
-    "4_16_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "4_16_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 64
@@ -399,23 +339,23 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "4_32_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "4_32_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 16
         },
-        "num_warps": 1,
-        "num_stages": 2,
+        "num_warps": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
-    "4_64_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "4_64_128_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
-            "BLOCK_J": 32,
+            "BLOCK_J": 16,
             "BLOCK_K": 32
         },
         "num_warps": 1,
-        "num_stages": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -432,9 +372,9 @@
     "1_32_256_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 64
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -462,9 +402,9 @@
     "4_32_256_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 64
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -479,7 +419,7 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_16_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "1_16_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 64
@@ -489,53 +429,53 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_32_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "1_32_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
+        },
+        "num_warps": 2,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_64_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 32
         },
         "num_warps": 1,
-        "num_stages": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_64_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "4_16_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
+        },
+        "num_warps": 2,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_32_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 32
         },
         "num_warps": 1,
-        "num_stages": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
-    "4_16_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
-        },
-        "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_32_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "4_64_256_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 32
         },
         "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_64_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -552,9 +492,9 @@
     "1_32_512_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 64
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -582,9 +522,9 @@
     "4_32_512_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 64
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -599,17 +539,47 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_16_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "1_16_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 16
+            "BLOCK_K": 64
         },
-        "num_warps": 1,
-        "num_stages": 2,
+        "num_warps": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_32_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "1_32_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 32
+        },
+        "num_warps": 1,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_64_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 32
+        },
+        "num_warps": 1,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_16_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 32
+        },
+        "num_warps": 1,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_32_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 32
@@ -619,43 +589,13 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_64_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "4_64_512_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 32
         },
         "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_16_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
-        },
-        "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_32_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_64_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -672,9 +612,9 @@
     "1_32_1024_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 64
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -702,9 +642,9 @@
     "4_32_1024_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 64
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -719,109 +659,9 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_16_16_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 16
-        },
-        "num_warps": 2,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "1_16_16_torch.float16_torch.float32_torch.float16_torch.float16_torch.float16_torch.float16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 16
-        },
-        "num_warps": 1,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "1_16_16_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 16
-        },
-        "num_warps": 1,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "1_32_32_torch.float16_torch.float32_torch.float16_torch.float16_torch.float16_torch.float16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_32_32_torch.float16_torch.float32_torch.float16_torch.float16_torch.float16_torch.float16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_32_64_torch.float16_torch.float32_torch.float16_torch.float16_torch.float16_torch.float16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 16
-        },
-        "num_warps": 1,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_32_128_torch.float16_torch.float32_torch.float16_torch.float16_torch.float16_torch.float16_torch.bool": {
+    "1_16_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_32_256_torch.float16_torch.float32_torch.float16_torch.float16_torch.float16_torch.float16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_32_512_torch.float16_torch.float32_torch.float16_torch.float16_torch.float16_torch.float16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_32_1024_torch.float16_torch.float32_torch.float16_torch.float16_torch.float16_torch.float16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "1_64_64_torch.float16_torch.float32_torch.float16_torch.float16_torch.float16_torch.float16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
             "BLOCK_K": 64
         },
         "num_warps": 2,
@@ -829,63 +669,103 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "4_128_16_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
+    "1_32_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
         "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 16
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
+        },
+        "num_warps": 2,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_64_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 32
+        },
+        "num_warps": 1,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_16_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
+        },
+        "num_warps": 2,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_32_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 32
+        },
+        "num_warps": 1,
+        "num_stages": 2,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_64_1024_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 32
+        },
+        "num_warps": 1,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_16_2048_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
         },
         "num_warps": 2,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
-    "4_128_16_torch.float16_torch.float32_torch.float16_torch.float16_torch.float16_torch.float16_torch.bool": {
+    "1_32_2048_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 16
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_128_16_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 16
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "16_16_1_torch.float16_torch.float32_torch.float16_torch.float16_torch.float16_torch.float16_torch.bool": {
-        "kwargs": {
-            "BLOCK_J": 16,
+            "BLOCK_J": 32,
             "BLOCK_K": 16
         },
         "num_warps": 1,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
-    "32_32_1_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+    "1_64_2048_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
-            "BLOCK_J": 16,
+            "BLOCK_J": 32,
             "BLOCK_K": 16
         },
         "num_warps": 1,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
-    "64_64_1_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
+    "4_16_2048_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
         "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 16
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
         },
         "num_warps": 2,
-        "num_stages": 1,
+        "num_stages": 2,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_32_2048_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 16
+        },
+        "num_warps": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     }

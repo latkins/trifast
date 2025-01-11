@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 import json
-import hashlib
 import builtins
 import os
 import time
@@ -12,42 +13,16 @@ import torch
 from triton.testing import do_bench, do_bench_cudagraph
 import triton
 
-
-device_capability = torch.cuda.get_device_capability()
-device_capability = f"{device_capability[0]}-{device_capability[1]}"
-
-
-def hash_configs(configs: list[triton.Config]) -> str:
-    strings = list(sorted(str(config) for config in configs))
-    string = "".join(strings)
-    return hashlib.sha256(string.encode()).hexdigest()
+from trifast.autotune_helpers import (
+    config_to_dict,
+    dict_to_config,
+    device_capability,
+    device_name,
+    cache_dir,
+)
 
 
-def hash_keys(keys: list[str]) -> str:
-    strings = list(sorted(keys))
-    string = "".join(strings)
-    return hashlib.sha256(string.encode()).hexdigest()
-
-
-def config_to_dict(config: triton.Config) -> dict:
-    # This assume we are not making use of `pre_hook` in the `triton.Config`
-    return {
-        "kwargs": config.kwargs,
-        "num_warps": config.num_warps,
-        "num_stages": config.num_stages,
-        "num_ctas": config.num_ctas,
-        "maxnreg": config.maxnreg,
-    }
-
-
-def dict_to_config(d: dict) -> triton.Config:
-    return triton.Config(
-        kwargs=d["kwargs"],
-        num_warps=d["num_warps"],
-        num_stages=d["num_stages"],
-        num_ctas=d["num_ctas"],
-        maxnreg=d["maxnreg"],
-    )
+logger = logging.getLogger(__name__)
 
 
 class Autotuner(triton.KernelInterface):
@@ -69,7 +44,8 @@ class Autotuner(triton.KernelInterface):
         warmup=25,
         rep=100,
         use_cuda_graph=False,
-        cache_dir=None,
+        cache_dir: Path = cache_dir,
+        force_retune: bool = False,
     ):
         """
         :param prune_configs_by: a dict of functions that are used to prune configs, fields:
@@ -77,6 +53,9 @@ class Autotuner(triton.KernelInterface):
             'top_k': number of configs to bench
             'prune_num_stages_by'(optional): a function used to prune num_stages. It takes configs:List[Config] as its input, and returns pruned configs.
         """
+        self.force_retune = force_retune
+        self.retuned = {}
+
         if not configs:
             self.configs = [triton.Config({}, num_warps=4, num_stages=2, num_ctas=1)]
         else:
@@ -91,8 +70,7 @@ class Autotuner(triton.KernelInterface):
             cache_dir.mkdir(parents=True, exist_ok=True)
             # TODO: adjust this to also include the fn's hash.
             self.cache_file = (
-                cache_dir
-                / f"{fn.__name__}_{hash_configs(configs)}_{hash_keys(key)}_{device_capability}.json"
+                cache_dir / f"{fn.__name__}_{device_name}_{device_capability}.json"
             )
             # Load any previously cached data
             if self.cache_file.exists():
@@ -160,7 +138,6 @@ class Autotuner(triton.KernelInterface):
             self.base_fn = self.base_fn.fn
         self.num_warmups = warmup
         self.num_reps = rep
-        import torch
 
         self.use_cuda_graph = use_cuda_graph and torch.cuda.is_available()
 
@@ -246,7 +223,8 @@ class Autotuner(triton.KernelInterface):
                 if hasattr(arg, "dtype"):
                     key.append(str(arg.dtype))
             key = "_".join(map(str, key))
-            if key not in self.cache:
+            if key not in self.cache or self.force_retune:
+                logger.debug(f"Running autotuning for {self.base_fn.__name__}")
                 # prune configs
                 used_cached_result = False
                 pruned_configs = self.prune_configs(kwargs)
@@ -329,7 +307,8 @@ def autotune(
     warmup=25,
     rep=100,
     use_cuda_graph=False,
-    cache_dir=None,
+    cache_dir: Path = cache_dir,
+    force_retune: bool = False,
 ):
     """
     Decorator for auto-tuning a :code:`triton.jit`'d function.
@@ -399,6 +378,7 @@ def autotune(
             rep=rep,
             use_cuda_graph=use_cuda_graph,
             cache_dir=cache_dir,
+            force_retune=force_retune,
         )
 
     return decorator

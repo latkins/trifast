@@ -17,12 +17,6 @@ Backward
 
 
 Todos:
-- [] Add head dim to mask, so we can batch.
-- [] Add batch -> head and head -> batch if necessary.
-- [] Improve tests (e.g. larger scale, unittest on actual model values?)
 - [] Try to train a model with it.
-- [] Make WARPS/STAGES/etc consistent in `scripts/tune.py`
-- [] Tune tries different dtypes, knows about cuda capability
-- [] Add tl.constexpr for HAS_MASK and DIVISIBLE, if statements where appropriate.
 - [] Can we perform and of dq/db/dkv transposed?
-- [] Can we fold delta pre-computation into e.g. db?
+- [x] Can we fold delta pre-computation into e.g. db?
