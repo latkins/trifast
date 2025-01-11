@@ -11,6 +11,7 @@ from functools import partial
 cache_dir = Path(__file__).parent.parent.parent / "configs"
 
 FORCE_RETUNE = os.getenv("TRIFAST_FORCE_RETUNE", False)
+FORCE_RETUNE = os.getenv('TRIFAST_FORCE_RETUNE', '0').lower() in ('1', 'true', 'yes', 'on')
 FORCE_RETUNE = 1
 
 
@@ -155,12 +156,20 @@ def block_valid(block: int, n: int, allowed: list[int]) -> bool:
     # n 128, block > 128 invalid
     # n > 256 all blocks valid
 
-    if n < allowed[0]:
+    if n <= allowed[0]:
         return block <= allowed[0]
-    elif n > allowed[-1]:
+    elif n >= allowed[-1]:
         return True
 
-    return block <= 2 * n
+    return block < 2 * n
+
+def block_idx_dist(block, comp_block, allowed):
+    idx = allowed.index(block)
+    comp_idx = allowed.index(comp_block)
+
+    return abs(idx - comp_idx)
+
+
 
 
 def prune_configs(configs, named_args, *, lookup, n_neighbours: int, **kwargs):
@@ -202,9 +211,14 @@ def prune_configs(configs, named_args, *, lookup, n_neighbours: int, **kwargs):
     num_warps = starting_config.num_warps
     num_stages = starting_config.num_stages
     for config in configs:
-        if abs(block_j - config.kwargs["BLOCK_J"]) > n_neighbours:
+        j = config.kwargs["BLOCK_J"]
+        k = config.kwargs["BLOCK_K"]
+        w = config.num_warps
+        s = config.num_stages
+
+        if block_idx_dist(block_j, j, allowed["block_j"]) > n_neighbours:
             continue
-        if abs(block_k - config.kwargs["BLOCK_K"]) > n_neighbours:
+        if block_idx_dist(block_k, k, allowed["block_k"]) > n_neighbours:
             continue
         if abs(num_warps - config.num_warps) > n_neighbours:
             continue
@@ -227,10 +241,10 @@ bwd_q_lookup = get_config_lookup("_bwd_q")
 bwd_b_lookup = get_config_lookup("_bwd_b")
 
 
-prune_fwd = partial(prune_configs, lookup=fwd_lookup, n_neighbours=2)
-prune_bwd_kv = partial(prune_configs, lookup=bwd_kv_lookup, n_neighbours=2)
-prune_bwd_q = partial(prune_configs, lookup=bwd_q_lookup, n_neighbours=2)
-prune_bwd_b = partial(prune_configs, lookup=bwd_b_lookup, n_neighbours=2)
+prune_fwd = partial(prune_configs, lookup=fwd_lookup, n_neighbours=4)
+prune_bwd_kv = partial(prune_configs, lookup=bwd_kv_lookup, n_neighbours=4)
+prune_bwd_q = partial(prune_configs, lookup=bwd_q_lookup, n_neighbours=4)
+prune_bwd_b = partial(prune_configs, lookup=bwd_b_lookup, n_neighbours=4)
 
 
 configs = [
