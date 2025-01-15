@@ -1,27 +1,27 @@
 {
     "1_16_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
         },
         "num_warps": 2,
-        "num_stages": 1,
+        "num_stages": 3,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_32_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
         },
         "num_warps": 2,
-        "num_stages": 1,
+        "num_stages": 3,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_64_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
+            "BLOCK_J": 16,
             "BLOCK_K": 16
         },
         "num_warps": 2,
@@ -31,27 +31,27 @@
     },
     "4_16_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
         },
-        "num_warps": 1,
+        "num_warps": 2,
         "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_32_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
         },
-        "num_warps": 1,
-        "num_stages": 2,
+        "num_warps": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_64_32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
+            "BLOCK_J": 16,
             "BLOCK_K": 16
         },
         "num_warps": 2,
@@ -61,28 +61,28 @@
     },
     "1_16_32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
         },
         "num_warps": 2,
-        "num_stages": 3,
+        "num_stages": 4,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_32_32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
         },
-        "num_warps": 4,
+        "num_warps": 2,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_64_32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
         },
         "num_warps": 2,
         "num_stages": 1,
@@ -91,28 +91,28 @@
     },
     "4_16_32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
         },
         "num_warps": 1,
-        "num_stages": 6,
+        "num_stages": 3,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_32_32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 32,
+            "BLOCK_J": 16,
             "BLOCK_K": 32
         },
         "num_warps": 2,
-        "num_stages": 3,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_64_32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
             "BLOCK_J": 16,
-            "BLOCK_K": 16
+            "BLOCK_K": 32
         },
         "num_warps": 2,
         "num_stages": 1,
@@ -122,29 +122,29 @@
     "1_16_64_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 16
+            "BLOCK_K": 32
         },
-        "num_warps": 1,
+        "num_warps": 2,
         "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_32_64_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
         },
-        "num_warps": 1,
-        "num_stages": 2,
+        "num_warps": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_64_64_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
+            "BLOCK_J": 16,
             "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -152,10 +152,10 @@
     "4_16_64_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 16
         },
         "num_warps": 1,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -165,13 +165,13 @@
             "BLOCK_K": 16
         },
         "num_warps": 2,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_64_64_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
+            "BLOCK_J": 16,
             "BLOCK_K": 16
         },
         "num_warps": 2,
@@ -181,36 +181,6 @@
     },
     "1_16_64_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 64,
-            "BLOCK_K": 16
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "1_32_64_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
-        "kwargs": {
-            "BLOCK_J": 64,
-            "BLOCK_K": 32
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "1_64_64_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 16
-        },
-        "num_warps": 2,
-        "num_stages": 1,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_16_64_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
-        "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 64
         },
@@ -219,22 +189,52 @@
         "num_ctas": 1,
         "maxnreg": null
     },
-    "4_32_64_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
+    "1_32_64_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 32,
+            "BLOCK_J": 16,
+            "BLOCK_K": 64
+        },
+        "num_warps": 2,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_64_64_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
+        "kwargs": {
+            "BLOCK_J": 16,
+            "BLOCK_K": 64
+        },
+        "num_warps": 2,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_16_64_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
+        "kwargs": {
+            "BLOCK_J": 16,
             "BLOCK_K": 32
         },
         "num_warps": 1,
-        "num_stages": 2,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_32_64_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
+        "kwargs": {
+            "BLOCK_J": 16,
+            "BLOCK_K": 16
+        },
+        "num_warps": 1,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_64_64_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 64,
-            "BLOCK_K": 32
+            "BLOCK_J": 32,
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
@@ -242,10 +242,10 @@
     "1_16_128_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 16
         },
         "num_warps": 1,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -255,13 +255,13 @@
             "BLOCK_K": 16
         },
         "num_warps": 1,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_64_128_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
+            "BLOCK_J": 16,
             "BLOCK_K": 16
         },
         "num_warps": 2,
@@ -271,18 +271,18 @@
     },
     "4_16_128_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
+            "BLOCK_J": 64,
             "BLOCK_K": 32
         },
-        "num_warps": 1,
-        "num_stages": 1,
+        "num_warps": 2,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_32_128_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 64
+            "BLOCK_J": 64,
+            "BLOCK_K": 16
         },
         "num_warps": 2,
         "num_stages": 2,
@@ -291,7 +291,7 @@
     },
     "4_64_128_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
+            "BLOCK_J": 16,
             "BLOCK_K": 16
         },
         "num_warps": 2,
@@ -302,40 +302,40 @@
     "1_16_128_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 64
         },
-        "num_warps": 1,
+        "num_warps": 2,
         "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_32_128_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_J": 16,
+            "BLOCK_K": 64
         },
-        "num_warps": 1,
-        "num_stages": 2,
+        "num_warps": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_64_128_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 64,
-            "BLOCK_K": 16
+            "BLOCK_J": 16,
+            "BLOCK_K": 32
         },
         "num_warps": 2,
-        "num_stages": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_16_128_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 64
         },
-        "num_warps": 1,
-        "num_stages": 3,
+        "num_warps": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -344,38 +344,38 @@
             "BLOCK_J": 32,
             "BLOCK_K": 32
         },
-        "num_warps": 1,
+        "num_warps": 2,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_64_128_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 64,
-            "BLOCK_K": 16
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
         },
         "num_warps": 2,
-        "num_stages": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_16_256_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 64
         },
-        "num_warps": 1,
-        "num_stages": 1,
+        "num_warps": 2,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_32_256_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 64,
+            "BLOCK_J": 32,
             "BLOCK_K": 16
         },
-        "num_warps": 2,
-        "num_stages": 1,
+        "num_warps": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -391,10 +391,10 @@
     },
     "4_16_256_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 64
+            "BLOCK_J": 64,
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -405,14 +405,14 @@
             "BLOCK_K": 16
         },
         "num_warps": 2,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_64_256_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
+            "BLOCK_J": 32,
+            "BLOCK_K": 16
         },
         "num_warps": 2,
         "num_stages": 2,
@@ -422,10 +422,10 @@
     "1_16_256_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 64
         },
-        "num_warps": 1,
-        "num_stages": 2,
+        "num_warps": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -434,15 +434,15 @@
             "BLOCK_J": 32,
             "BLOCK_K": 32
         },
-        "num_warps": 1,
+        "num_warps": 2,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_64_256_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 64,
-            "BLOCK_K": 32
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
         },
         "num_warps": 2,
         "num_stages": 1,
@@ -451,28 +451,28 @@
     },
     "4_16_256_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_J": 64,
+            "BLOCK_K": 16
         },
-        "num_warps": 1,
-        "num_stages": 3,
+        "num_warps": 2,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_32_256_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_J": 64,
+            "BLOCK_K": 16
         },
-        "num_warps": 1,
-        "num_stages": 2,
+        "num_warps": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_64_256_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 64,
-            "BLOCK_K": 32
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
         },
         "num_warps": 2,
         "num_stages": 1,
@@ -482,10 +482,10 @@
     "1_16_512_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 64
         },
-        "num_warps": 1,
-        "num_stages": 1,
+        "num_warps": 2,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -495,7 +495,7 @@
             "BLOCK_K": 16
         },
         "num_warps": 1,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -511,10 +511,10 @@
     },
     "4_16_512_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 64
+            "BLOCK_J": 64,
+            "BLOCK_K": 16
         },
-        "num_warps": 2,
+        "num_warps": 1,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
@@ -525,7 +525,7 @@
             "BLOCK_K": 16
         },
         "num_warps": 2,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -542,17 +542,17 @@
     "1_16_512_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 64
         },
-        "num_warps": 1,
-        "num_stages": 2,
+        "num_warps": 2,
+        "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_32_512_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 16
         },
         "num_warps": 1,
         "num_stages": 2,
@@ -561,7 +561,7 @@
     },
     "1_64_512_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 16,
+            "BLOCK_J": 32,
             "BLOCK_K": 32
         },
         "num_warps": 2,
@@ -571,27 +571,27 @@
     },
     "4_16_512_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 64
+            "BLOCK_J": 64,
+            "BLOCK_K": 16
         },
-        "num_warps": 1,
-        "num_stages": 1,
+        "num_warps": 2,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_32_512_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_J": 128,
+            "BLOCK_K": 16
         },
-        "num_warps": 1,
+        "num_warps": 2,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_64_512_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 16,
+            "BLOCK_J": 32,
             "BLOCK_K": 32
         },
         "num_warps": 2,
@@ -602,20 +602,20 @@
     "1_16_1024_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 64
         },
-        "num_warps": 1,
-        "num_stages": 1,
+        "num_warps": 2,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "1_32_1024_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 64,
+            "BLOCK_J": 32,
             "BLOCK_K": 16
         },
-        "num_warps": 2,
-        "num_stages": 1,
+        "num_warps": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -631,18 +631,18 @@
     },
     "4_16_1024_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_J": 64,
+            "BLOCK_K": 16
         },
         "num_warps": 1,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
     "4_32_1024_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 64
+            "BLOCK_J": 64,
+            "BLOCK_K": 16
         },
         "num_warps": 2,
         "num_stages": 2,
@@ -662,7 +662,7 @@
     "1_16_1024_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 64
         },
         "num_warps": 2,
         "num_stages": 1,
@@ -672,7 +672,7 @@
     "1_32_1024_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 16
         },
         "num_warps": 1,
         "num_stages": 2,
@@ -681,8 +681,8 @@
     },
     "1_64_1024_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
         },
         "num_warps": 2,
         "num_stages": 1,
@@ -691,41 +691,41 @@
     },
     "4_16_1024_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_32_1024_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
-        "kwargs": {
-            "BLOCK_J": 32,
-            "BLOCK_K": 32
-        },
-        "num_warps": 1,
-        "num_stages": 2,
-        "num_ctas": 1,
-        "maxnreg": null
-    },
-    "4_64_1024_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
-        "kwargs": {
-            "BLOCK_J": 16,
-            "BLOCK_K": 32
+            "BLOCK_J": 64,
+            "BLOCK_K": 16
         },
         "num_warps": 2,
         "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
-    "1_16_2048_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
+    "4_32_1024_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
+        "kwargs": {
+            "BLOCK_J": 128,
+            "BLOCK_K": 16
+        },
+        "num_warps": 2,
+        "num_stages": 2,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "4_64_1024_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
         "kwargs": {
             "BLOCK_J": 32,
             "BLOCK_K": 32
         },
-        "num_warps": 1,
+        "num_warps": 2,
         "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_16_2048_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
+        },
+        "num_warps": 2,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -735,7 +735,7 @@
             "BLOCK_K": 16
         },
         "num_warps": 1,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -752,10 +752,10 @@
     "4_16_2048_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
         "kwargs": {
             "BLOCK_J": 32,
-            "BLOCK_K": 32
+            "BLOCK_K": 64
         },
-        "num_warps": 1,
-        "num_stages": 1,
+        "num_warps": 2,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -765,7 +765,7 @@
             "BLOCK_K": 16
         },
         "num_warps": 1,
-        "num_stages": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -774,8 +774,8 @@
             "BLOCK_J": 16,
             "BLOCK_K": 16
         },
-        "num_warps": 2,
-        "num_stages": 1,
+        "num_warps": 1,
+        "num_stages": 3,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -784,8 +784,8 @@
             "BLOCK_J": 16,
             "BLOCK_K": 16
         },
-        "num_warps": 2,
-        "num_stages": 1,
+        "num_warps": 1,
+        "num_stages": 2,
         "num_ctas": 1,
         "maxnreg": null
     },
@@ -805,6 +805,56 @@
             "BLOCK_K": 16
         },
         "num_warps": 2,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_16_16_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.float32_torch.bool_torch.float32_torch.float32_torch.float32": {
+        "kwargs": {
+            "BLOCK_J": 16,
+            "BLOCK_K": 16
+        },
+        "num_warps": 1,
+        "num_stages": 4,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_16_16_torch.float16_torch.float16_torch.float16_torch.float16_torch.float16_torch.float32_torch.bool_torch.float16_torch.float16_torch.float16": {
+        "kwargs": {
+            "BLOCK_J": 16,
+            "BLOCK_K": 16
+        },
+        "num_warps": 4,
+        "num_stages": 4,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_16_16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16_torch.bfloat16": {
+        "kwargs": {
+            "BLOCK_J": 16,
+            "BLOCK_K": 16
+        },
+        "num_warps": 1,
+        "num_stages": 4,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_32_32_torch.float16_torch.float16_torch.float16_torch.float16_torch.float16_torch.float32_torch.bool_torch.float16_torch.float16_torch.float16": {
+        "kwargs": {
+            "BLOCK_J": 16,
+            "BLOCK_K": 16
+        },
+        "num_warps": 2,
+        "num_stages": 6,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_64_64_torch.float16_torch.float16_torch.float16_torch.float16_torch.float16_torch.float32_torch.bool_torch.float16_torch.float16_torch.float16": {
+        "kwargs": {
+            "BLOCK_J": 32,
+            "BLOCK_K": 64
+        },
+        "num_warps": 8,
         "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null

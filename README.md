@@ -1,4 +1,5 @@
-Fused Triangle Self Attention kernel, written in triton. Basically flash attention, but for triangle self attention. Implementation heavily inspired by FlagAttention and the triton fused attention tutorial.
+Fused Triangle Self Attention kernel, written in triton. Basically flash attention, but for triangle self attention.
+Implementation heavily inspired by [FlagAttention](https://github.com/FlagOpen/FlagAttention/tree/main) and the [triton fused attention tutorial](https://triton-lang.org/main/getting-started/tutorials/06-fused-attention.html#sphx-glr-getting-started-tutorials-06-fused-attention-py).
 
 - n^2 memory complexity (vs n^3 for pure pytorch).
 - Faster (~2x) backward pass than next fastest implementation I could find (DS4S evoformer kernel).
@@ -19,4 +20,4 @@ Backward
 Todos:
 - [] Try to train a model with it.
 - [] Can we perform and of dq/db/dkv transposed?
-- [x] Can we fold delta pre-computation into e.g. db?
+- [] Rewrite autotuner

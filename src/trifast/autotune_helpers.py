@@ -5,13 +5,19 @@ import json
 import triton
 from pathlib import Path
 from functools import partial
+from importlib.resources import files
+
+# optional env var?
+cache_dir = files("mypackage") / "config"
 
 
-# optional env var.
-cache_dir = Path(__file__).parent.parent.parent / "configs"
-
-FORCE_RETUNE = os.getenv("TRIFAST_FORCE_RETUNE", False)
-FORCE_RETUNE = os.getenv('TRIFAST_FORCE_RETUNE', '0').lower() in ('1', 'true', 'yes', 'on')
+FORCE_RETUNE = os.getenv("TRIFAST_FORCE_RETUNE", "0").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+IS_TESTING = bool(os.getenv("PYTEST_CURRENT_TEST"))
 
 
 device_capability = torch.cuda.get_device_capability()
