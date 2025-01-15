@@ -3,12 +3,11 @@ from collections import defaultdict
 import torch
 import json
 import triton
-from pathlib import Path
 from functools import partial
 from importlib.resources import files
 
 # optional env var?
-cache_dir = files("mypackage") / "config"
+cache_dir = files("trifast") / "config"
 
 
 FORCE_RETUNE = os.getenv("TRIFAST_FORCE_RETUNE", "0").lower() in (
@@ -17,8 +16,7 @@ FORCE_RETUNE = os.getenv("TRIFAST_FORCE_RETUNE", "0").lower() in (
     "yes",
     "on",
 )
-IS_TESTING = bool(os.getenv("PYTEST_CURRENT_TEST"))
-
+IS_TESTING = os.getenv("PYTEST_VERSION")
 
 device_capability = torch.cuda.get_device_capability()
 device_capability = f"{device_capability[0]}-{device_capability[1]}"
@@ -252,14 +250,24 @@ prune_bwd_q = partial(prune_configs, lookup=bwd_q_lookup, n_neighbours=1)
 prune_bwd_b = partial(prune_configs, lookup=bwd_b_lookup, n_neighbours=1)
 
 
-configs = [
-    triton.Config(
-        kwargs={"BLOCK_J": block_j, "BLOCK_K": block_k},
-        num_warps=warps,
-        num_stages=stages,
-    )
-    for block_j in allowed["block_j"]
-    for block_k in allowed["block_k"]
-    for warps in allowed["warps"]
-    for stages in allowed["stages"]
-]
+safe_config = triton.Config(
+    kwargs={"BLOCK_J": 16, "BLOCK_K": 16},
+    num_warps=1,
+    num_stages=1,
+)
+
+configs = (
+    [
+        triton.Config(
+            kwargs={"BLOCK_J": block_j, "BLOCK_K": block_k},
+            num_warps=warps,
+            num_stages=stages,
+        )
+        for block_j in allowed["block_j"]
+        for block_k in allowed["block_k"]
+        for warps in allowed["warps"]
+        for stages in allowed["stages"]
+    ]
+    if not IS_TESTING
+    else [safe_config]
+)
