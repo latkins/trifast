@@ -7,7 +7,7 @@ from functools import partial
 from importlib.resources import files
 
 # optional env var?
-cache_dir = files("trifast") / "config"
+cache_dir = files("trifast") / "configs"
 
 
 FORCE_RETUNE = os.getenv("TRIFAST_FORCE_RETUNE", "0").lower() in (
@@ -166,13 +166,12 @@ def block_valid(block: int, n: int, allowed: list[int]) -> bool:
 
     return block < 2 * n
 
+
 def block_idx_dist(block, comp_block, allowed):
     idx = allowed.index(block)
     comp_idx = allowed.index(comp_block)
 
     return abs(idx - comp_idx)
-
-
 
 
 def prune_configs(configs, named_args, *, lookup, n_neighbours: int, **kwargs):
