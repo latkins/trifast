@@ -858,5 +858,25 @@
         "num_stages": 1,
         "num_ctas": 1,
         "maxnreg": null
+    },
+    "4_32_2048_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 128,
+            "BLOCK_K": 32
+        },
+        "num_warps": 4,
+        "num_stages": 3,
+        "num_ctas": 1,
+        "maxnreg": null
+    },
+    "1_16_2048_torch.bfloat16_torch.float32_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bool": {
+        "kwargs": {
+            "BLOCK_J": 128,
+            "BLOCK_K": 64
+        },
+        "num_warps": 4,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
     }
 }

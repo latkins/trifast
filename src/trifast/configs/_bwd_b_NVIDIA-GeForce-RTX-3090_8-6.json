@@ -858,5 +858,15 @@
         "num_stages": 5,
         "num_ctas": 1,
         "maxnreg": null
+    },
+    "4_32_2048_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.bfloat16_torch.float32_torch.bool_torch.bfloat16_torch.bfloat16": {
+        "kwargs": {
+            "BLOCK_J": 64,
+            "BLOCK_K": 256
+        },
+        "num_warps": 8,
+        "num_stages": 1,
+        "num_ctas": 1,
+        "maxnreg": null
     }
 }
