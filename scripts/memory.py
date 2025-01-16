@@ -103,7 +103,7 @@ for n in list(range(32, 2049, 32)):
 df = pd.DataFrame(rows)
 
 out_dir = Path(__file__).parent.parent / "benchmark" / device_name / "memory"
-out_dir.mkdir(exist_ok=True)
+out_dir.mkdir(exist_ok=True, parents=True)
 df.to_parquet(out_dir / "memory.parquet")
 
 for mode in ["fwd", "bwd"]:

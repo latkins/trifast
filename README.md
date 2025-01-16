@@ -9,12 +9,12 @@ Implementation heavily inspired by [FlagAttention](https://github.com/FlagOpen/F
 ## Plots
 All done on a 3090 in bfloat16.
 ### Forward
-![TSA forward runtime](benchmark_plots/tri_attn_fwd.png "TSA forward runtime")
-![TSA forward memory](benchmark_plots/peak_memory_fwd.png "TSA forward memory")
+![TSA forward runtime](benchmark/NVIDIA-GeForce-RTX-3090/runtime/tri_attn_fwd_torch.bfloat16.png "TSA forward runtime")
+![TSA forward memory](benchmark/NVIDIA-GeForce-RTX-3090/memory/peak_memory_fwd_torch.bfloat16.png "TSA forward memory")
 
 Backward
-![TSA backward runtime](benchmark_plots/tri_attn_bwd.png "TSA backward runtime")
-![TSA backward memory](benchmark_plots/peak_memory_bwd.png "TSA backward memory")
+![TSA backward runtime](benchmark/NVIDIA-GeForce-RTX-3090/runtime/tri_attn_bwd_torch.bfloat16.png "TSA backward runtime")
+![TSA backward memory](benchmark/NVIDIA-GeForce-RTX-3090/memory/peak_memory_bwd_torch.bfloat16.png "TSA backward memory")
 
 
 Todos:
