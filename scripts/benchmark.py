@@ -8,51 +8,35 @@ from trifast.equiv import (
     triangle_self_attention_ds4s,
 )
 from trifast.utils import gen_tensors, disable_tf32, enable_tf32
+from trifast.autotune_helpers import device_name
 
 configs = [
     triton.testing.Benchmark(
         x_names=["n"],  # Argument names to use as x-axis
-        x_vals=[
-            32,
-            64,
-            128,
-            256,
-            512,
-            768,
-            1024,
-            2048,
-        ],  # Different values for n to benchmark
+        x_vals=list(range(32, 2049, 32)),  # Different values for n to benchmark
         line_arg="provider",  # Argument name whose value corresponds to different lines in the plot
         line_vals=[
-            "simple",
-            "simple_tf32",
-            "simple_compiled",
             "simple_compiled_tf32",
-            "trifast",
             "ds4s",
+            "trifast",
         ],  # Values for the line_arg
         line_names=[
-            "Simple Pytorch",
-            "Simple Pytorch, TF32 enabled",
-            "Simple Pytorch, Compiled",
             "Simple Pytorch, Compiled, TF32 enabled",
-            "Trifast",
             "Deepspeed",
+            "Trifast",
         ],  # Labels for the lines
         styles=[
-            ("green", "-."),
-            ("red", "-."),
-            ("yellow", "-."),
             ("pink", "-."),
-            ("blue", ":"),
             ("orange", ":"),
+            ("blue", ":"),
         ],  # Line styles
         ylabel="milliseconds",  # Label name for the y-axis
         plot_name=f"tri_attn_{mode}_{dtype}",
         args={"mode": mode, "dtype": dtype},  # Other arguments to pass to the function
     )
     for mode in ["fwd", "bwd"]
-    for dtype in [torch.bfloat16, torch.float32, torch.float16]
+    for dtype in [torch.bfloat16]
+    # for dtype in [torch.bfloat16, torch.float32, torch.float16]
 ]
 
 
@@ -116,6 +100,6 @@ def benchmark(n, mode, dtype, provider):
 out_dir = Path(__file__).parent.parent
 benchmark.run(
     print_data=True,
-    show_plots=True,
-    save_path=str(out_dir / "benchmark_plots"),
+    show_plots=False,
+    save_path=str(out_dir / "benchmark" / device_name / "runtime"),
 )
