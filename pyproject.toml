@@ -1,6 +1,6 @@
 [project]
 name = "trifast"
-version = "0.1.2"
+version = "0.1.3"
 description = "Fast kernel for triangle self attetion."
 readme = "README.md"
 authors = [
@@ -35,11 +35,16 @@ exclude = [
     "benchmark/*",
 ]
 
-[tool.hatch.build.targets.wheel.force-include]
-"configs/" = "trifast/configs/"
+[tool.hatch.build.targets.wheel]
+include = [
+    "src/trifast/configs/*.json",
+]
 
-[tool.hatch.build.targets.sdist.force-include]
-"configs/" = "trifast/configs/"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/trifast/configs/*.json",
+]
 
 [tool.uv]
 dev-dependencies = [
