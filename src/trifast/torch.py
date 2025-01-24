@@ -32,6 +32,7 @@ class _triangle_attention(torch.autograd.Function):
         k = rearrange(k, "b h ... -> (b h) ...").contiguous()
         v = rearrange(v, "b h ... -> (b h) ...").contiguous()
         b = rearrange(b, "b h ... -> (b h) ...").contiguous()
+        mask = mask.contiguous()
 
         # e.g. batch x head
         bh = q.shape[0]

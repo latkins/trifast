@@ -97,7 +97,7 @@ def _fwd(
         mask_k = (k_idxs + start_k) < N
 
         kt_block = tl.load(kt_ptrs, mask_k[None, :])  # [d,k]
-        b_block = tl.load(b_ptrs,  mask_j[:, None] | mask_k[None, :])  # [j,k]
+        b_block = tl.load(b_ptrs,  mask_j[:, None] & mask_k[None, :])  # [j,k]
         m_block = tl.load(mask_ptrs, mask_k, cache_modifier=".cg") # [k]
 
         scores = b_block.to(tl.float32)
@@ -242,7 +242,7 @@ def _bwd_kv(
         mask_j = (j_idxs + start_j) < N
 
         q_block = tl.load(q_ptrs, mask_j[:, None]) # [j,d]
-        b_block = tl.load(b_ptrs, mask_j[:, None] | mask_k[None, :]).to(tl.float32) # [j,k]
+        b_block = tl.load(b_ptrs, mask_j[:, None] & mask_k[None, :]).to(tl.float32) # [j,k]
 
         scores = tl.dot(q_block, kt_block, b_block, input_precision="ieee") # [j,k]
         scores = tl.where(mask_j[:, None] & mask_k[None, :], scores, neg_inf)
@@ -376,7 +376,7 @@ def _bwd_q(
         start_k = tl.multiple_of(start_k, BLOCK_K)
         mask_k = (k_idxs + start_k) < N
 
-        b_block = tl.load(b_ptrs, mask_j[:, None] | mask_k[None, :]).to(tl.float32) # [j,k]
+        b_block = tl.load(b_ptrs, mask_j[:, None] & mask_k[None, :]).to(tl.float32) # [j,k]
         m_block = tl.load(mask_ptrs, mask_k, cache_modifier=".cg") # [k]
         k_block = tl.load(k_ptrs, mask_k[:, None]) # [k,d]
         k_block = k_block * tl.full([1], value=sm_scale, dtype=input_dtype) # [j,d]
