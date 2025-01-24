@@ -1,10 +1,10 @@
 [project]
 name = "trifast"
-version = "0.1.5"
+version = "0.1.7"
 description = "Fast kernel for triangle self attetion."
 readme = "README.md"
 authors = [
-    { name = "Liam Atkinson", email = "liamatkinson@gmail.com" }
+    { name = "Liam Atkinson", email = "hello@liamatkinson.com" }
 ]
 requires-python = ">=3.11"
 dependencies = [
@@ -30,23 +30,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
-exclude = [
-    ".git",
-    "benchmark/*",
-]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/trifast"]
-include = [
-    "src/trifast/configs/*.json",
-]
-
-
-[tool.hatch.build.targets.sdist]
-packages = ["src/trifast"]
-include = [
-    "src/trifast/configs/*.json",
-]
+package-dir = "src"
 
 [tool.uv]
 dev-dependencies = [
