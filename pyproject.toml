@@ -32,6 +32,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build]
 package-dir = "src"
 
+[project.scripts]
+tune = "trifast.tune"
+
 [tool.uv]
 dev-dependencies = [
     "fastparquet>=2024.11.0",
