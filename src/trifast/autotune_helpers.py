@@ -27,7 +27,7 @@ device_name = torch.cuda.get_device_name().replace(" ", "-")
 allowed = {
     "block_j": [16, 32, 64, 128, 256],
     "block_k": [16, 32, 64, 128, 256],
-    "warps": [1, 2, 4, 8],
+    "warps": [2, 4, 8],
     "stages": [1, 2, 3, 4, 5, 6],
 }
 
@@ -38,8 +38,6 @@ def config_to_dict(config: triton.Config) -> dict:
         "kwargs": config.kwargs,
         "num_warps": config.num_warps,
         "num_stages": config.num_stages,
-        "num_ctas": config.num_ctas,
-        "maxnreg": config.maxnreg,
     }
 
 
@@ -48,8 +46,6 @@ def dict_to_config(d: dict) -> triton.Config:
         kwargs=d["kwargs"],
         num_warps=d["num_warps"],
         num_stages=d["num_stages"],
-        num_ctas=d["num_ctas"],
-        maxnreg=d["maxnreg"],
     )
 
 
@@ -194,10 +190,6 @@ def prune_configs(configs, named_args, *, lookup, n_neighbours: int, **kwargs):
         # If we are < smallest allowed value, only allow smallest allowed block_j / block_k.
         pruned_configs = []
         for config in configs:
-            smaller_than_min = n < allowed["block_j"][0] or n < allowed["block_k"][0]
-            bigger_than_max = n > allowed["block_j"][-1] or n > allowed["block_k"][-1]
-            # Don't allow block_j/block_k > 2x our size, unless we are already at the max, or are under the min..
-
             if not block_valid(config.kwargs["BLOCK_J"], n, allowed["block_j"]):
                 continue
 
@@ -222,9 +214,9 @@ def prune_configs(configs, named_args, *, lookup, n_neighbours: int, **kwargs):
             continue
         if block_idx_dist(block_k, k, allowed["block_k"]) > n_neighbours:
             continue
-        if abs(num_warps - config.num_warps) > n_neighbours:
+        if abs(num_warps - w) > n_neighbours:
             continue
-        if abs(num_stages - config.num_stages) > n_neighbours:
+        if abs(num_stages - s) > n_neighbours:
             continue
 
         if not block_valid(config.kwargs["BLOCK_J"], n, allowed["block_j"]):
@@ -233,6 +225,9 @@ def prune_configs(configs, named_args, *, lookup, n_neighbours: int, **kwargs):
             continue
 
         pruned_configs.append(config)
+
+    if not len(pruned_configs):
+        pruned_configs = configs
 
     return pruned_configs
 
@@ -249,12 +244,6 @@ prune_bwd_q = partial(prune_configs, lookup=bwd_q_lookup, n_neighbours=1)
 prune_bwd_b = partial(prune_configs, lookup=bwd_b_lookup, n_neighbours=1)
 
 
-safe_config = triton.Config(
-    kwargs={"BLOCK_J": 16, "BLOCK_K": 16},
-    num_warps=1,
-    num_stages=1,
-)
-
 configs = (
     [
         triton.Config(
@@ -267,6 +256,17 @@ configs = (
         for warps in allowed["warps"]
         for stages in allowed["stages"]
     ]
-    if not IS_TESTING
-    else [safe_config]
+    if FORCE_RETUNE
+    else [
+        triton.Config(
+            kwargs={"BLOCK_J": 16, "BLOCK_K": 16},
+            num_warps=4,
+            num_stages=2,
+        ),
+        triton.Config(
+            kwargs={"BLOCK_J": 32, "BLOCK_K": 32},
+            num_warps=8,
+            num_stages=3,
+        ),
+    ]
 )

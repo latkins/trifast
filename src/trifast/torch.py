@@ -23,6 +23,11 @@ class _triangle_attention(torch.autograd.Function):
         b: Float[torch.Tensor, "b h n n"],
         mask: Bool[torch.Tensor, "b n n"],
     ) -> Float[torch.Tensor, "b h n n d"]:
+
+        # Meta tensors are used by torch.compile.
+        if any(t.is_meta for t in [q, k, v, b, mask]):
+            return torch.empty_like(q, device="meta")
+
         sm_scale = q.shape[-1] ** -0.5
 
         bs, h, _, n, dim = q.shape
@@ -37,7 +42,8 @@ class _triangle_attention(torch.autograd.Function):
         # e.g. batch x head
         bh = q.shape[0]
 
-        grid = lambda x: (triton.cdiv(n, x["BLOCK_J"]), n, bh)
+        def grid(x):
+            return (triton.cdiv(n, x["BLOCK_J"]), n, bh)
 
         o = torch.zeros_like(q)
         l = torch.zeros((bh, n, n), device=q.device, dtype=torch.float32)
@@ -64,7 +70,6 @@ class _triangle_attention(torch.autograd.Function):
         o = rearrange(o, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
 
         ctx.save_for_backward(q, k, v, b, mask, o, l)
-        ctx.grid = grid
         ctx.sm_scale = sm_scale
 
         return o
@@ -81,6 +86,19 @@ class _triangle_attention(torch.autograd.Function):
     ]:
         # There is only one gradient.
         do = grad_output[0]
+
+        # Meta tensors are used by torch.compile.
+        if do.is_meta or any(t.is_meta for t in ctx.saved_tensors):
+            # Return meta gradients with correct shapes
+            return (
+                torch.empty_like(q, device="meta"),
+                torch.empty_like(k, device="meta"),
+                torch.empty_like(v, device="meta"),
+                torch.empty_like(b, device="meta"),
+                torch.empty_like(mask, device="meta"),
+            )
+
+
         q, k, v, b, mask, o, l = ctx.saved_tensors
 
         bs, h, _, n, dim = q.shape
@@ -104,7 +122,8 @@ class _triangle_attention(torch.autograd.Function):
 
         d = torch.zeros((bh, n, n), dtype=q.dtype, device=q.device)
 
-        q_grid = lambda x: (triton.cdiv(n, x["BLOCK_J"]), n, bh)
+        def q_grid(x):
+            return (triton.cdiv(n, x["BLOCK_J"]), n, bh)
         # fmt: off
         # NOTE: This also calculates delta for kv/b!
         _bwd_q[q_grid](
@@ -125,9 +144,10 @@ class _triangle_attention(torch.autograd.Function):
         # fmt: on
 
         # Do the actual backward pass.
-        grid = lambda x: (triton.cdiv(n, x["BLOCK_K"]), n, bh)
+        def kv_grid(x):
+            return (triton.cdiv(n, x["BLOCK_K"]), n, bh)
         # fmt: off
-        _bwd_kv[grid](
+        _bwd_kv[kv_grid](
             d, d.stride(0), d.stride(1), d.stride(2),
             q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
             k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
@@ -144,11 +164,12 @@ class _triangle_attention(torch.autograd.Function):
         )
         # fmt: on
 
-        b_grid = lambda x: (
-            triton.cdiv(n, x["BLOCK_J"]),
-            triton.cdiv(n, x["BLOCK_K"]),
-            bh,
-        )
+        def b_grid(x):
+            return (
+                triton.cdiv(n, x["BLOCK_J"]),
+                triton.cdiv(n, x["BLOCK_K"]),
+                bh,
+            )
 
         # fmt: off
         _bwd_b[b_grid](
