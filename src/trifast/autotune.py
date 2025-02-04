@@ -12,6 +12,7 @@ from typing import Dict
 import torch
 from triton.testing import do_bench, do_bench_cudagraph
 import triton
+from multiprocessing import Lock
 
 from trifast.autotune_helpers import (
     config_to_dict,
@@ -20,6 +21,8 @@ from trifast.autotune_helpers import (
     device_name,
     cache_dir,
 )
+
+FILE_LOCK = Lock()
 
 
 logger = logging.getLogger(__name__)
@@ -57,7 +60,7 @@ class Autotuner(triton.KernelInterface):
         self.retuned = {}
 
         if not configs:
-            self.configs = [triton.Config({}, num_warps=4, num_stages=2, num_ctas=1)]
+            self.configs = [triton.Config({}, num_warps=4, num_stages=2)]
         else:
             self.configs = configs
         self.key_idx = [arg_names.index(k) for k in key]
@@ -75,7 +78,7 @@ class Autotuner(triton.KernelInterface):
             # Load any previously cached data
             if self.cache_file.exists():
                 try:
-                    with open(self.cache_file, "rb") as f:
+                    with FILE_LOCK, open(self.cache_file, "rb") as f:
                         self.cache = {
                             k: dict_to_config(v) for k, v in json.load(f).items()
                         }
@@ -145,12 +148,15 @@ class Autotuner(triton.KernelInterface):
         """Writes the current self.cache to disk if self.cache_dir is set."""
         if self.cache_file is not None:
             try:
-                with open(self.cache_file, "w") as f:
-                    json.dump(
-                        {k: config_to_dict(v) for k, v in self.cache.items()},
-                        f,
-                        indent=4,
-                    )
+                with FILE_LOCK:
+                    temp_file = f"{self.cache_file}.{os.getpid()}.tmp"
+                    with open(temp_file, "w") as f:
+                        json.dump(
+                            {k: config_to_dict(v) for k, v in self.cache.items()},
+                            f,
+                            indent=4,
+                        )
+                    os.replace(temp_file, self.cache_file)
             except Exception as e:
                 print(f"Warning: Failed to write autotune cache: {e}")
 
