@@ -33,7 +33,7 @@ build-backend = "hatchling.build"
 package-dir = "src"
 
 [project.scripts]
-tune = "trifast.tune"
+trifast-tune = "trifast.tune:main"
 
 [tool.uv]
 dev-dependencies = [
