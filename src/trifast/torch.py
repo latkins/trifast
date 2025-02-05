@@ -89,7 +89,7 @@ class _triangle_attention(torch.autograd.Function):
         q, k, v, b, mask, o, l = ctx.saved_tensors
 
         # Meta tensors are used by torch.compile.
-        if do.is_meta or any(t.is_meta for t in ctx.saved_tensors):
+        if do.is_meta or any(t.is_meta for t in (q, k, v, b, mask, o, l)):
             # Return meta gradients with correct shapes
             return (
                 torch.empty_like(q, device="meta"),
