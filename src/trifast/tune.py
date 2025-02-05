@@ -1,7 +1,7 @@
 from math import log2
 import os
 
-os.environ["TRIFAST_FORCE_RETUNE"] = "1"
+os.environ["TRIFAST_FORCE_TUNE"] = "1"
 os.environ["TRITON_PRINT_AUTOTUNING"] = "1"
 
 import torch

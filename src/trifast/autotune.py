@@ -48,7 +48,7 @@ class Autotuner(triton.KernelInterface):
         rep=100,
         use_cuda_graph=False,
         cache_dir: Path = cache_dir,
-        force_retune: bool = False,
+        force_tune: bool = False,
     ):
         """
         :param prune_configs_by: a dict of functions that are used to prune configs, fields:
@@ -56,7 +56,7 @@ class Autotuner(triton.KernelInterface):
             'top_k': number of configs to bench
             'prune_num_stages_by'(optional): a function used to prune num_stages. It takes configs:List[Config] as its input, and returns pruned configs.
         """
-        self.force_retune = force_retune
+        self.force_tune = force_tune
         self.retuned = {}
 
         if not configs:
@@ -229,7 +229,7 @@ class Autotuner(triton.KernelInterface):
                 if hasattr(arg, "dtype"):
                     key.append(str(arg.dtype))
             key = "_".join(map(str, key))
-            if key not in self.cache or self.force_retune:
+            if key not in self.cache or self.force_tune:
                 logger.debug(f"Running autotuning for {self.base_fn.__name__}")
                 # prune configs
                 used_cached_result = False
@@ -314,7 +314,7 @@ def autotune(
     rep=100,
     use_cuda_graph=False,
     cache_dir: Path = cache_dir,
-    force_retune: bool = False,
+    force_tune: bool = False,
 ):
     """
     Decorator for auto-tuning a :code:`triton.jit`'d function.
@@ -384,7 +384,7 @@ def autotune(
             rep=rep,
             use_cuda_graph=use_cuda_graph,
             cache_dir=cache_dir,
-            force_retune=force_retune,
+            force_tune=force_tune,
         )
 
     return decorator
