@@ -63,7 +63,7 @@ def tune(min_n, max_n, heads, dims, dtypes):
                     tri_out.sum().backward()
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         description="Autotune TriFast kernels over these parameters."
     )
@@ -100,3 +100,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     tune(args.min_n, args.max_n, args.h, args.d, args.dtype)
+
+
+if __name__ == "__main__":
+    main()
