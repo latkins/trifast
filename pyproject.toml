@@ -1,6 +1,6 @@
 [project]
 name = "trifast"
-version = "0.1.10"
+version = "0.1.11"
 description = "Fast kernel for triangle self attetion."
 readme = "README.md"
 authors = [

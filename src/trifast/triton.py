@@ -497,7 +497,7 @@ def _bwd_b(
         q_block *= tl.full([1], value=sm_scale, dtype=input_dtype)
         k_block = tl.load(k_ptrs, mask_k[:, None], cache_modifier=".cg") # [k,d]
 
-        b_block = tl.load(b_ptrs, mask_j[:, None] | mask_k[None, :], cache_modifier=".cg").to(tl.float32) # [j,k]
+        b_block = tl.load(b_ptrs, mask_j[:, None] & mask_k[None, :], cache_modifier=".cg").to(tl.float32) # [j,k]
         m_block = tl.load(mask_ptrs, mask_k, cache_modifier=".cg") # [k]
 
         scores = tl.dot(q_block, tl.trans(k_block), b_block, input_precision="ieee") # [j,k]
