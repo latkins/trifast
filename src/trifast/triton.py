@@ -17,16 +17,13 @@ from trifast.autotune_helpers import (
 
 
 # fmt: off
-@triton.heuristics(
-    values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
-)
-@autotune(
+@triton.autotune(
     configs=_fwd_configs,
     key=["H", "DIM", "CLOSEST_N"],
-    prune_configs_by={
-        "early_config_prune": prune_fwd,
-    },
-    force_tune=FORCE_TUNE,
+    # prune_configs_by={
+    #     "early_config_prune": prune_fwd,
+    # },
+    # force_tune=FORCE_TUNE,
 )
 @triton.jit
 def _fwd(
@@ -95,7 +92,7 @@ def _fwd(
     q_block = tl.load(q_ptrs, mask_j[:, None])  # [j,d]
     q_block = q_block * tl.full([1], value=sm_scale, dtype=q_block.type.element_ty)
 
-    for start_k in range(0, N, BLOCK_K):
+    for start_k in tl.range(0, N, BLOCK_K):
         start_k = tl.multiple_of(start_k, BLOCK_K)
         mask_k = (k_idxs + start_k) < N
 
@@ -147,15 +144,12 @@ def _fwd(
 
 
 # fmt: off
-@triton.heuristics(
-    values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
-)
-@autotune(
+@triton.autotune(
     configs=_bwd_kv_configs,
     key=["H", "DIM", "CLOSEST_N"],
     reset_to_zero=["dk_ptr", "dv_ptr"],
-    prune_configs_by={"early_config_prune": prune_bwd_kv},
-    force_tune=FORCE_TUNE,
+    # prune_configs_by={"early_config_prune": prune_bwd_kv},
+    # force_tune=FORCE_TUNE,
 )
 @triton.jit
 def _bwd_kv(
@@ -283,15 +277,15 @@ def _bwd_kv(
 
 
 # fmt: off
-@triton.heuristics(
-    values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
-)
-@autotune(
+# @triton.heuristics(
+#     values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
+# )
+@triton.autotune(
     configs=_bwd_q_configs,
     key=["H", "DIM", "CLOSEST_N"],
     reset_to_zero=["dq_ptr", "d_ptr"],
-    prune_configs_by={"early_config_prune": prune_bwd_q},
-    force_tune=FORCE_TUNE,
+    # prune_configs_by={"early_config_prune": prune_bwd_q},
+    # force_tune=FORCE_TUNE,
 )
 @triton.jit
 def _bwd_q(
@@ -408,15 +402,15 @@ def _bwd_q(
 
 
 # fmt: off
-@triton.heuristics(
-    values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
-)
-@autotune(
+# @triton.heuristics(
+#     values={"CLOSEST_N": lambda args: 2 ** int(math.ceil(math.log2(args["N"])))}
+# )
+@triton.autotune(
     configs=_bwd_b_configs,
     key=["H", "DIM", "CLOSEST_N"],
     reset_to_zero=["db_ptr"],
-    prune_configs_by={"early_config_prune": prune_bwd_b},
-    force_tune=FORCE_TUNE,
+    # prune_configs_by={"early_config_prune": prune_bwd_b},
+    # force_tune=FORCE_TUNE,
 )
 @triton.jit
 def _bwd_b(

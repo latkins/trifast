@@ -28,7 +28,7 @@ FILE_LOCK = Lock()
 logger = logging.getLogger(__name__)
 
 
-class Autotuner(triton.KernelInterface):
+class Autotuner(triton.runtime.Autotuner):
     """
     Copied from triton -- changed autotune to persist to disk.
     """
@@ -56,6 +56,20 @@ class Autotuner(triton.KernelInterface):
             'top_k': number of configs to bench
             'prune_num_stages_by'(optional): a function used to prune num_stages. It takes configs:List[Config] as its input, and returns pruned configs.
         """
+        super().__init__(
+            fn,
+            arg_names,
+            configs,
+            key,
+            reset_to_zero,
+            restore_value,
+            pre_hook,
+            post_hook,
+            prune_configs_by,
+            warmup,
+            rep,
+            use_cuda_graph,
+        )
         self.force_tune = force_tune
         self.retuned = {}
 
@@ -160,7 +174,7 @@ class Autotuner(triton.KernelInterface):
             except Exception as e:
                 print(f"Warning: Failed to write autotune cache: {e}")
 
-    def _bench(self, *args, config, **meta):
+    def _bench(self, *args, config, local_nargs, **meta):
         from triton.compiler.errors import CompileTimeAssertionFailure
 
         # check for conflicts, i.e. meta-parameters both provided
@@ -173,7 +187,7 @@ class Autotuner(triton.KernelInterface):
             )
         # augment meta-parameters with tunable ones
         current = dict(meta, **config.all_kwargs())
-        full_nargs = {**self.nargs, **current}
+        full_nargs = {**local_nargs, **current}
 
         def kernel_call():
             if config.pre_hook:
@@ -216,10 +230,12 @@ class Autotuner(triton.KernelInterface):
             )
 
     def run(self, *args, **kwargs):
-        self.nargs = dict(zip(self.arg_names, args))
+        # self.nargs = dict(zip(self.arg_names, args))
+        local_nargs = dict(zip(self.arg_names, args))
+
         used_cached_result = True
         if len(self.configs) > 1:
-            all_args = {**self.nargs, **kwargs}
+            all_args = {**local_nargs, **kwargs}
             _args = []
             for name in self.arg_names:
                 if name in all_args:
@@ -236,7 +252,9 @@ class Autotuner(triton.KernelInterface):
                 pruned_configs = self.prune_configs(kwargs)
                 bench_start = time.time()
                 timings = {
-                    config: self._bench(*args, config=config, **kwargs)
+                    config: self._bench(
+                        *args, config=config, local_nargs=local_nargs, **kwargs
+                    )
                     for config in pruned_configs
                 }
                 bench_end = time.time()
@@ -249,23 +267,25 @@ class Autotuner(triton.KernelInterface):
             config = self.cache[key]
         else:
             config = self.configs[0]
-        self.best_config = config
+
         if os.getenv("TRITON_PRINT_AUTOTUNING", None) == "1" and not used_cached_result:
             print(
                 f"Triton autotuning for function {self.base_fn.__name__} finished after "
-                f"{self.bench_time:.2f}s; best config selected: {self.best_config};"
+                f"{self.bench_time:.2f}s; best config selected: {config};"
             )
         if config.pre_hook is not None:
-            config.pre_hook({**self.nargs, **kwargs, **config.all_kwargs()})
+            config.pre_hook({**local_nargs, **kwargs, **config.all_kwargs()})
+
+        # This is a hack to help torch compile.
+        cfg_kwargs = {k: v for k, v in config.all_kwargs().items() if k != "num_ctas"}
         ret = self.fn.run(
             *args,
             **kwargs,
-            **config.all_kwargs(),
+            **cfg_kwargs,
         )
-        self.nargs = None
         return ret
 
-    def prune_configs(self, kwargs):
+    def prune_configs(self, local_nargs, kwargs):
         pruned_configs = self.configs
         if self.early_config_prune:
             pruned_configs = self.early_config_prune(self.configs, self.nargs, **kwargs)
@@ -276,7 +296,7 @@ class Autotuner(triton.KernelInterface):
             if len(pruned_configs) > top_k:
                 est_timing = {
                     config: self.perf_model(
-                        **self.nargs,
+                        **local_nargs,
                         **kwargs,
                         **config.all_kwargs(),
                     )
@@ -288,17 +308,18 @@ class Autotuner(triton.KernelInterface):
         return pruned_configs
 
     def warmup(self, *args, **kwargs):
-        self.nargs = dict(zip(self.arg_names, args))
+        local_nargs = dict(zip(self.arg_names, args))
         ret = []
         for config in self.prune_configs(kwargs):
             ret.append(
                 self.fn.warmup(
                     *args,
+                    local_nargs=local_nargs,
                     **kwargs,
                     **config.all_kwargs(),
                 )
             )
-        self.nargs = None
+        # self.nargs = None
         return ret
 
 

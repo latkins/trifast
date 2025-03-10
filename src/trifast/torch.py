@@ -1,9 +1,11 @@
+import math
 import triton
 import torch
 from jaxtyping import Bool, Float
 from einops import rearrange
-
+from torch.library import wrap_triton, triton_op
 import triton.testing
+from typing import Sequence
 
 from trifast.triton import (
     _fwd,
@@ -11,6 +13,142 @@ from trifast.triton import (
     _bwd_q,
     _bwd_b,
 )
+
+
+@triton_op("trifast::triangle_attention_forward", mutates_args={})
+def fwd(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    b: torch.Tensor,
+    mask: torch.Tensor,
+    sm_scale: float,
+    bh: int,
+    n: int,
+    h: int,
+    dim: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    def grid(x):
+        return (triton.cdiv(n, x["BLOCK_J"]), n, bh)
+
+    o = torch.zeros_like(q)
+    l = torch.zeros((bh, n, n), device=q.device, dtype=torch.float32)
+
+    CLOSEST_N = 2 ** int(math.ceil(math.log2(n)))
+
+    # fmt: off
+    wrap_triton(_fwd)[grid](
+        o, o.stride(0), o.stride(1), o.stride(2), o.stride(3),
+        l, l.stride(0), l.stride(1), l.stride(2),
+        q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
+        k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
+        v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+        b, b.stride(0), b.stride(1), b.stride(2),
+        mask, mask.stride(0), mask.stride(1), mask.stride(2),
+        neg_inf=torch.finfo(q.dtype).min,
+        sm_scale=sm_scale, N=n, H=h, DIM=dim,
+        CLOSEST_N=CLOSEST_N,
+    )
+
+    return o, l
+
+
+@triton_op(
+    "trifast::triangle_attention_backward",
+    mutates_args=("dq", "dk", "dv", "db", "d"),
+)
+def bwd(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    b: torch.Tensor,
+    o: torch.Tensor,
+    l: torch.Tensor,
+    mask: torch.Tensor,
+    do: torch.Tensor,
+    dq: torch.Tensor,
+    dk: torch.Tensor,
+    dv: torch.Tensor,
+    db: torch.Tensor,
+    d: torch.Tensor,
+    sm_scale: float,
+    bh: int,
+    h: int,
+    n: int,
+    dim: int,
+) -> None:
+    CLOSEST_N = 2 ** int(math.ceil(math.log2(n)))
+
+    def q_grid(x):
+        return (triton.cdiv(n, x["BLOCK_J"]), n, bh)
+
+    # fmt: off
+    # NOTE: This also calculates delta for kv/b!
+    wrap_triton(_bwd_q)[q_grid](
+        d, d.stride(0), d.stride(1), d.stride(2),
+        q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
+        k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
+        v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+        b, b.stride(0), b.stride(1), b.stride(2),
+        l, l.stride(0), l.stride(1), l.stride(2),
+        mask, mask.stride(0), mask.stride(1), mask.stride(2),
+        o, o.stride(0), o.stride(1), o.stride(2), o.stride(3),
+        do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
+        dq, dq.stride(0), dq.stride(1), dq.stride(2), dq.stride(3),
+        sm_scale=sm_scale,
+        neg_inf=torch.finfo(q.dtype).min,
+        H=h, N=n, DIM=dim,
+        CLOSEST_N=CLOSEST_N,
+    )
+    # fmt: on
+
+    # Do the actual backward pass.
+    def kv_grid(x):
+        return (triton.cdiv(n, x["BLOCK_K"]), n, bh)
+
+    # fmt: off
+    wrap_triton(_bwd_kv)[kv_grid](
+        d, d.stride(0), d.stride(1), d.stride(2),
+        q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
+        k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
+        v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+        b, b.stride(0), b.stride(1), b.stride(2),
+        l, l.stride(0), l.stride(1), l.stride(2),
+        mask, mask.stride(0), mask.stride(1), mask.stride(2),
+        do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
+        dk, dk.stride(0), dk.stride(1), dk.stride(2), dk.stride(3),
+        dv, dv.stride(0), dv.stride(1), dv.stride(2), dv.stride(3),
+        sm_scale=sm_scale,
+        neg_inf=torch.finfo(q.dtype).min,
+        H=h, N=n, DIM=dim,
+        CLOSEST_N=CLOSEST_N,
+    )
+    # fmt: on
+
+    def b_grid(x):
+        return (
+            triton.cdiv(n, x["BLOCK_J"]),
+            triton.cdiv(n, x["BLOCK_K"]),
+            bh,
+        )
+
+    # fmt: off
+    wrap_triton(_bwd_b)[b_grid](
+        d, d.stride(0), d.stride(1), d.stride(2),
+        q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
+        k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
+        v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
+        b, b.stride(0), b.stride(1), b.stride(2),
+        l, l.stride(0), l.stride(1), l.stride(2),
+        mask, mask.stride(0), mask.stride(1), mask.stride(2),
+        do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
+        db, db.stride(0), db.stride(1), db.stride(2),
+        sm_scale=sm_scale,
+        neg_inf=torch.finfo(q.dtype).min,
+        H=h, N=n, DIM=dim,
+        CLOSEST_N=CLOSEST_N,
+    )
+    # fmt: on
 
 
 class _triangle_attention(torch.autograd.Function):
@@ -24,12 +162,13 @@ class _triangle_attention(torch.autograd.Function):
         mask: Bool[torch.Tensor, "b n n"],
     ) -> Float[torch.Tensor, "b h n n d"]:
         # Meta tensors are used by torch.compile.
-        if any(t.is_meta for t in [q, k, v, b, mask]):
-            return torch.empty_like(q, device="meta")
+        # if any(t.is_meta for t in [q, k, v, b, mask]):
+        #     return torch.empty_like(q, device="meta")
 
         sm_scale = q.shape[-1] ** -0.5
 
         bs, h, _, n, dim = q.shape
+
 
         # TODO: Should also allow flattening arbitrary batch dims.
         q = rearrange(q, "b h ... -> (b h) ...").contiguous()
@@ -41,25 +180,7 @@ class _triangle_attention(torch.autograd.Function):
         # e.g. batch x head
         bh = q.shape[0]
 
-        def grid(x):
-            return (triton.cdiv(n, x["BLOCK_J"]), n, bh)
-
-        o = torch.zeros_like(q)
-        l = torch.zeros((bh, n, n), device=q.device, dtype=torch.float32)
-
-        # fmt: off
-        _fwd[grid](
-            o, o.stride(0), o.stride(1), o.stride(2), o.stride(3),
-            l, l.stride(0), l.stride(1), l.stride(2),
-            q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
-            k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
-            v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
-            b, b.stride(0), b.stride(1), b.stride(2),
-            mask, mask.stride(0), mask.stride(1), mask.stride(2),
-            neg_inf=torch.finfo(q.dtype).min,
-            sm_scale=sm_scale, N=n, H=h, DIM=dim,
-        )
-
+        o, l = fwd(q, k, v, b, mask, sm_scale, bh, n, h, dim)
 
         q = rearrange(q, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
         k = rearrange(k, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
@@ -75,7 +196,7 @@ class _triangle_attention(torch.autograd.Function):
 
     @staticmethod
     def backward(
-        ctx, *grad_output: Float[torch.Tensor, "b h n n d"]
+        ctx, *grad_output: Sequence[Float[torch.Tensor, "b h n n d"]]
     ) -> tuple[
         Float[torch.Tensor, "b h n n d"],  # dq
         Float[torch.Tensor, "b h n n d"],  # dk
@@ -89,15 +210,15 @@ class _triangle_attention(torch.autograd.Function):
         q, k, v, b, mask, o, l = ctx.saved_tensors
 
         # Meta tensors are used by torch.compile.
-        if do.is_meta or any(t.is_meta for t in (q, k, v, b, mask, o, l)):
-            # Return meta gradients with correct shapes
-            return (
-                torch.empty_like(q, device="meta"),
-                torch.empty_like(k, device="meta"),
-                torch.empty_like(v, device="meta"),
-                torch.empty_like(b, device="meta"),
-                torch.empty_like(mask, device="meta"),
-            )
+        # if do.is_meta or any(t.is_meta for t in (q, k, v, b, mask, o, l)):
+        #     # Return meta gradients with correct shapes
+        #     return (
+        #         torch.empty_like(q, device="meta"),
+        #         torch.empty_like(k, device="meta"),
+        #         torch.empty_like(v, device="meta"),
+        #         torch.empty_like(b, device="meta"),
+        #         torch.empty_like(mask, device="meta"),
+        #     )
 
         bs, h, _, n, dim = q.shape
 
@@ -118,75 +239,9 @@ class _triangle_attention(torch.autograd.Function):
 
         bh = q.shape[0]
 
+        bwd(q, k, v, b, o, l, mask, do, dq, dk, dv, db, dmask, ctx.sm_scale, bh, h, n, dim)
+
         d = torch.zeros((bh, n, n), dtype=q.dtype, device=q.device)
-
-        def q_grid(x):
-            return (triton.cdiv(n, x["BLOCK_J"]), n, bh)
-
-        # fmt: off
-        # NOTE: This also calculates delta for kv/b!
-        _bwd_q[q_grid](
-            d, d.stride(0), d.stride(1), d.stride(2),
-            q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
-            k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
-            v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
-            b, b.stride(0), b.stride(1), b.stride(2),
-            l, l.stride(0), l.stride(1), l.stride(2),
-            mask, mask.stride(0), mask.stride(1), mask.stride(2),
-            o, o.stride(0), o.stride(1), o.stride(2), o.stride(3),
-            do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
-            dq, dq.stride(0), dq.stride(1), dq.stride(2), dq.stride(3),
-            sm_scale=ctx.sm_scale,
-            neg_inf=torch.finfo(q.dtype).min,
-            H=h, N=n, DIM=dim,
-        )
-        # fmt: on
-
-        # Do the actual backward pass.
-        def kv_grid(x):
-            return (triton.cdiv(n, x["BLOCK_K"]), n, bh)
-
-        # fmt: off
-        _bwd_kv[kv_grid](
-            d, d.stride(0), d.stride(1), d.stride(2),
-            q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
-            k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
-            v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
-            b, b.stride(0), b.stride(1), b.stride(2),
-            l, l.stride(0), l.stride(1), l.stride(2),
-            mask, mask.stride(0), mask.stride(1), mask.stride(2),
-            do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
-            dk, dk.stride(0), dk.stride(1), dk.stride(2), dk.stride(3),
-            dv, dv.stride(0), dv.stride(1), dv.stride(2), dv.stride(3),
-            sm_scale=ctx.sm_scale,
-            neg_inf=torch.finfo(q.dtype).min,
-            H=h, N=n, DIM=dim,
-        )
-        # fmt: on
-
-        def b_grid(x):
-            return (
-                triton.cdiv(n, x["BLOCK_J"]),
-                triton.cdiv(n, x["BLOCK_K"]),
-                bh,
-            )
-
-        # fmt: off
-        _bwd_b[b_grid](
-            d, d.stride(0), d.stride(1), d.stride(2),
-            q, q.stride(0), q.stride(1), q.stride(2), q.stride(3),
-            k, k.stride(0), k.stride(1), k.stride(2), k.stride(3),
-            v, v.stride(0), v.stride(1), v.stride(2), v.stride(3),
-            b, b.stride(0), b.stride(1), b.stride(2),
-            l, l.stride(0), l.stride(1), l.stride(2),
-            mask, mask.stride(0), mask.stride(1), mask.stride(2),
-            do, do.stride(0), do.stride(1), do.stride(2), do.stride(3),
-            db, db.stride(0), db.stride(1), db.stride(2),
-            sm_scale=ctx.sm_scale,
-            neg_inf=torch.finfo(q.dtype).min,
-            H=h, N=n, DIM=dim,
-        )
-        # fmt: on
 
         dq = rearrange(dq, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
         dk = rearrange(dk, "(b h) ... -> b h ...", h=h, b=bs).contiguous()
