@@ -3,7 +3,10 @@ from jaxtyping import Bool, Float
 
 from einops import einsum, rearrange
 
-from deepspeed.ops.deepspeed4science import DS4Sci_EvoformerAttention
+try:
+    from deepspeed.ops.deepspeed4science import DS4Sci_EvoformerAttention
+except ImportError:
+    DS4Sci_EvoformerAttention = None
 
 
 def neg_inf(dtype) -> float:
