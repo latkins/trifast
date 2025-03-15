@@ -1,16 +1,12 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 import json
 import builtins
 import os
 import time
-import inspect
 from typing import Dict
 
-import torch
-from triton.testing import do_bench, do_bench_cudagraph
 import triton
 from multiprocessing import Lock
 
@@ -19,7 +15,8 @@ from trifast.autotune_helpers import (
     dict_to_config,
     device_capability,
     device_name,
-    cache_dir,
+    config_dir,
+    FORCE_TUNE,
 )
 
 FILE_LOCK = Lock()
@@ -44,11 +41,9 @@ class Autotuner(triton.runtime.Autotuner):
         pre_hook=None,
         post_hook=None,
         prune_configs_by: Dict = None,
-        warmup=25,
-        rep=100,
+        warmup=None,
+        rep=None,
         use_cuda_graph=False,
-        cache_dir: Path = cache_dir,
-        force_tune: bool = False,
     ):
         """
         :param prune_configs_by: a dict of functions that are used to prune configs, fields:
@@ -70,24 +65,13 @@ class Autotuner(triton.runtime.Autotuner):
             rep,
             use_cuda_graph,
         )
-        self.force_tune = force_tune
-        self.retuned = {}
-
-        if not configs:
-            self.configs = [triton.Config({}, num_warps=4, num_stages=2)]
-        else:
-            self.configs = configs
-        self.key_idx = [arg_names.index(k) for k in key]
-        self.cache = {}
-
-        self.cache_dir = cache_dir
         # File where we'll store results if disk caching is enabled
         self.cache_file = None
-        if cache_dir is not None:
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            # TODO: adjust this to also include the fn's hash.
+        if config_dir is not None:
+            config_dir.mkdir(parents=True, exist_ok=True)
+            # TODO: adjust this to also include the fn's hash?
             self.cache_file = (
-                cache_dir / f"{fn.__name__}_{device_name}_{device_capability}.json"
+                config_dir / f"{fn.__name__}_{device_name}_{device_capability}.json"
             )
             # Load any previously cached data
             if self.cache_file.exists():
@@ -103,223 +87,72 @@ class Autotuner(triton.runtime.Autotuner):
                     )
                     self.cache = {}
 
-        self.arg_names = arg_names
-
-        # Reset to zero or restore values
-        self.reset_idx = []
-        if reset_to_zero is not None:
-            self.reset_idx = [arg_names.index(k) for k in reset_to_zero]
-        self.restore_idx = []
-        if restore_value is not None:
-            self.restore_idx = [arg_names.index(k) for k in restore_value]
-
-        # Hook to reset or restore for required tensors
-        self.pre_hook = lambda args, reset_only=False: 0
-        self.post_hook = lambda args, exception: 0
-        if pre_hook:
-            self.pre_hook = pre_hook
-        elif len(self.reset_idx) > 0 or len(self.restore_idx) > 0:
-
-            def _pre_hook(args, reset_only=False):
-                for i in self.reset_idx:
-                    args[i].zero_()
-                if not reset_only:
-                    self.restore_copies = [args[i].clone() for i in self.restore_idx]
-
-            self.pre_hook = _pre_hook
-
-        if post_hook:
-            self.post_hook = post_hook
-        elif len(self.restore_idx) > 0:
-
-            def _post_hook(args, exception):
-                for i, j in enumerate(self.restore_idx):
-                    args[j].copy_(self.restore_copies[i])
-                self.restore_copies = []
-
-            self.post_hook = _post_hook
-
-        self.perf_model = None
-        self.configs_top_k = 1.0
-        self.early_config_prune = None
-        if prune_configs_by:
-            self.perf_model = prune_configs_by.get("perf_model", self.perf_model)
-            self.configs_top_k = prune_configs_by.get("top_k", self.configs_top_k)
-            self.early_config_prune = prune_configs_by.get(
-                "early_config_prune", self.early_config_prune
-            )
-
-        self.fn = fn
-        self.base_fn = fn
-        while not inspect.isfunction(self.base_fn):
-            self.base_fn = self.base_fn.fn
-        self.num_warmups = warmup
-        self.num_reps = rep
-
-        self.use_cuda_graph = use_cuda_graph and torch.cuda.is_available()
-
     def _write_cache_to_disk(self):
         """Writes the current self.cache to disk if self.cache_dir is set."""
-        if self.cache_file is not None:
-            try:
-                with FILE_LOCK:
-                    temp_file = f"{self.cache_file}.{os.getpid()}.tmp"
-                    with open(temp_file, "w") as f:
-                        json.dump(
-                            {k: config_to_dict(v) for k, v in self.cache.items()},
-                            f,
-                            indent=4,
-                        )
-                    os.replace(temp_file, self.cache_file)
-            except Exception as e:
-                print(f"Warning: Failed to write autotune cache: {e}")
-
-    def _bench(self, *args, config, local_nargs, **meta):
-        from triton.compiler.errors import CompileTimeAssertionFailure
-
-        # check for conflicts, i.e. meta-parameters both provided
-        # as kwargs and by the autotuner
-        conflicts = meta.keys() & config.kwargs.keys()
-        if conflicts:
-            raise ValueError(
-                f"Conflicting meta-parameters: {', '.join(conflicts)}."
-                " Make sure that you don't re-define auto-tuned symbols."
-            )
-        # augment meta-parameters with tunable ones
-        current = dict(meta, **config.all_kwargs())
-        full_nargs = {**local_nargs, **current}
-
-        def kernel_call():
-            if config.pre_hook:
-                config.pre_hook(full_nargs)
-            self.pre_hook(args)
-            try:
-                self.fn.run(
-                    *args,
-                    **current,
-                )
-            except Exception as e:
-                try:
-                    self.post_hook(args, exception=e)
-                finally:
-                    # Throw exception raised by `self.fn.run`
-                    raise
-
-            self.post_hook(args, exception=None)
-
+        if self.cache_file is None:
+            return
+        temp_file = f"{self.cache_file}.{os.getpid()}.tmp"
         try:
-            if self.use_cuda_graph:
-                import torch
-
-                with torch.cuda.stream(torch.cuda.Stream()):
-                    bench_res = do_bench_cudagraph(
-                        kernel_call, rep=self.num_reps, return_mode="median"
+            with FILE_LOCK:
+                with open(temp_file, "w") as f:
+                    json.dump(
+                        {k: config_to_dict(v) for k, v in self.cache.items()},
+                        f,
+                        indent=4,
                     )
-                return bench_res
-            return do_bench(
-                kernel_call,
-                warmup=self.num_warmups,
-                rep=self.num_reps,
-                quantiles=(0.5, 0.2, 0.8),
-            )
-        except (triton.OutOfResources, CompileTimeAssertionFailure):
-            return (
-                float("inf")
-                if self.use_cuda_graph
-                else [float("inf"), float("inf"), float("inf")]
-            )
+                os.replace(temp_file, self.cache_file)
+        except Exception as e:
+            print(f"Warning: Failed to write autotune cache: {e}")
+        finally:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
 
     def run(self, *args, **kwargs):
-        # self.nargs = dict(zip(self.arg_names, args))
-        local_nargs = dict(zip(self.arg_names, args))
-
+        self.nargs = dict(zip(self.arg_names, args))
         used_cached_result = True
         if len(self.configs) > 1:
-            all_args = {**local_nargs, **kwargs}
-            _args = []
-            for name in self.arg_names:
-                if name in all_args:
-                    _args.append(all_args[name])
-            key = [_args[i] for i in self.key_idx]
-            for arg in _args:
+            all_args = {**self.nargs, **kwargs}
+            _args = {k: v for (k, v) in all_args.items() if k in self.arg_names}
+            key = [_args[key] for key in self.keys if key in _args]
+            for _, arg in _args.items():
                 if hasattr(arg, "dtype"):
                     key.append(str(arg.dtype))
             key = "_".join(map(str, key))
-            if key not in self.cache or self.force_tune:
-                logger.debug(f"Running autotuning for {self.base_fn.__name__}")
+            if key not in self.cache or FORCE_TUNE:
                 # prune configs
                 used_cached_result = False
                 pruned_configs = self.prune_configs(kwargs)
                 bench_start = time.time()
                 timings = {
-                    config: self._bench(
-                        *args, config=config, local_nargs=local_nargs, **kwargs
-                    )
+                    config: self._bench(*args, config=config, **kwargs)
                     for config in pruned_configs
                 }
                 bench_end = time.time()
                 self.bench_time = bench_end - bench_start
                 self.cache[key] = builtins.min(timings, key=timings.get)
-                self.pre_hook(args, reset_only=True)
+                full_nargs = {**self.nargs, **kwargs, **self.cache[key].all_kwargs()}
+                self.pre_hook(full_nargs, reset_only=True)
                 self.configs_timings = timings
 
                 self._write_cache_to_disk()
             config = self.cache[key]
         else:
             config = self.configs[0]
-
+        self.best_config = config
         if os.getenv("TRITON_PRINT_AUTOTUNING", None) == "1" and not used_cached_result:
             print(
                 f"Triton autotuning for function {self.base_fn.__name__} finished after "
-                f"{self.bench_time:.2f}s; best config selected: {config};"
+                f"{self.bench_time:.2f}s; best config selected: {self.best_config};"
             )
         if config.pre_hook is not None:
-            config.pre_hook({**local_nargs, **kwargs, **config.all_kwargs()})
-
-        # This is a hack to help torch compile.
-        cfg_kwargs = {k: v for k, v in config.all_kwargs().items() if k != "num_ctas"}
+            full_nargs = {**self.nargs, **kwargs, **config.all_kwargs()}
+            config.pre_hook(full_nargs)
         ret = self.fn.run(
             *args,
             **kwargs,
-            **cfg_kwargs,
+            **config.all_kwargs(),
         )
-        return ret
-
-    def prune_configs(self, local_nargs, kwargs):
-        pruned_configs = self.configs
-        if self.early_config_prune:
-            pruned_configs = self.early_config_prune(self.configs, self.nargs, **kwargs)
-        if self.perf_model:
-            top_k = self.configs_top_k
-            if isinstance(top_k, float) and top_k <= 1.0:
-                top_k = int(len(self.configs) * top_k)
-            if len(pruned_configs) > top_k:
-                est_timing = {
-                    config: self.perf_model(
-                        **local_nargs,
-                        **kwargs,
-                        **config.all_kwargs(),
-                    )
-                    for config in pruned_configs
-                }
-                pruned_configs = sorted(est_timing.keys(), key=lambda x: est_timing[x])[
-                    :top_k
-                ]
-        return pruned_configs
-
-    def warmup(self, *args, **kwargs):
-        local_nargs = dict(zip(self.arg_names, args))
-        ret = []
-        for config in self.prune_configs(kwargs):
-            ret.append(
-                self.fn.warmup(
-                    *args,
-                    local_nargs=local_nargs,
-                    **kwargs,
-                    **config.all_kwargs(),
-                )
-            )
-        # self.nargs = None
+        self.nargs = None
         return ret
 
 
@@ -331,11 +164,10 @@ def autotune(
     restore_value=None,
     pre_hook=None,
     post_hook=None,
-    warmup=25,
-    rep=100,
+    warmup=None,
+    rep=None,
     use_cuda_graph=False,
-    cache_dir: Path = cache_dir,
-    force_tune: bool = False,
+    do_bench=None,
 ):
     """
     Decorator for auto-tuning a :code:`triton.jit`'d function.
@@ -376,18 +208,20 @@ def autotune(
     :type restore_value: list[str]
     :param pre_hook: a function that will be called before the kernel is called.
         This overrides the default pre_hook used for 'reset_to_zero' and 'restore_value'.
-        'args': a list of arguments passed to the kernel.
+        'kwargs': a dict of all arguments passed to the kernel.
         'reset_only': a boolean indicating whether the pre_hook is called to reset the values only, without a corresponding post_hook.
     :type pre_hook: lambda args, reset_only
     :param post_hook: a function that will be called after the kernel is called.
         This overrides the default post_hook used for 'restore_value'.
-        'args': a list of arguments passed to the kernel.
+        'kwargs': a dict of all arguments passed to the kernel.
         'exception': the exception raised by the kernel in case of a compilation or runtime error.
     :type post_hook: lambda args, exception
-    :param warmup: Warmup time (in ms) to pass to benchmarking, defaults to 25.
+    :param warmup: warmup time (in ms) to pass to benchmarking (deprecated).
     :type warmup: int
-    :param rep: Repetition time (in ms) to pass to benchmarking, defaults to 100.
+    :param rep: repetition time (in ms) to pass to benchmarking (deprecated).
     :type rep: int
+    :param do_bench: a benchmark function to measure the time of each run.
+    :type do_bench: lambda fn, quantiles
     """
 
     def decorator(fn):
@@ -404,8 +238,6 @@ def autotune(
             warmup=warmup,
             rep=rep,
             use_cuda_graph=use_cuda_graph,
-            cache_dir=cache_dir,
-            force_tune=force_tune,
         )
 
     return decorator

@@ -1,6 +1,7 @@
 import triton
 import triton.testing
 import triton.language as tl
+from trifast.autotune import autotune
 from trifast.autotune_helpers import (
     _fwd_configs,
     _bwd_kv_configs,
@@ -10,7 +11,7 @@ from trifast.autotune_helpers import (
 
 
 # fmt: off
-@triton.autotune(
+@autotune(
     configs=_fwd_configs,
     key=["H", "DIM", "CLOSEST_N"],
 )
@@ -133,7 +134,7 @@ def _fwd(
 
 
 # fmt: off
-@triton.autotune(
+@autotune(
     configs=_bwd_kv_configs,
     key=["H", "DIM", "CLOSEST_N"],
     reset_to_zero=["dk_ptr", "dv_ptr"],
@@ -384,7 +385,7 @@ def _bwd_q(
 
 
 # fmt: off
-@triton.autotune(
+@autotune(
     configs=_bwd_b_configs,
     key=["H", "DIM", "CLOSEST_N"],
     reset_to_zero=["db_ptr"],
