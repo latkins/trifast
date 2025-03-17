@@ -1,13 +1,9 @@
-import shutil
 import os
 import torch
 import triton
 from pathlib import Path
-from importlib.resources import files, as_file
 import platformdirs
 from importlib.metadata import version
-
-package_config_dir = files("trifast") / "configs"
 
 
 FORCE_TUNE = os.getenv("TRIFAST_FORCE_TUNE", "0").lower() in (
@@ -34,12 +30,6 @@ def get_config_dir() -> Path:
 
     # If it doesn't exist, this is a fresh install.
     config_dir.mkdir(parents=True, exist_ok=True)
-
-    # Add pre-existing configs
-    with as_file(files("trifast") / "configs") as package_config_dir:
-        for package_config in package_config_dir.iterdir():
-            if package_config.name.endswith(".json"):
-                shutil.copy2(package_config, config_dir / package_config.name)
 
     return config_dir
 

@@ -265,7 +265,7 @@ def _bwd_kv(
 
 
 # fmt: off
-@triton.autotune(
+@autotune(
     configs=_bwd_q_configs,
     key=["H", "DIM", "CLOSEST_N"],
     reset_to_zero=["dq_ptr", "d_ptr"],
