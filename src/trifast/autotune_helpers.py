@@ -1,13 +1,9 @@
 import os
-from collections import defaultdict
 import torch
-import json
 import triton
-from functools import partial
-from importlib.resources import files
-
-# optional env var?
-cache_dir = files("trifast") / "configs"
+from pathlib import Path
+import platformdirs
+from importlib.metadata import version
 
 
 FORCE_TUNE = os.getenv("TRIFAST_FORCE_TUNE", "0").lower() in (
@@ -16,12 +12,29 @@ FORCE_TUNE = os.getenv("TRIFAST_FORCE_TUNE", "0").lower() in (
     "yes",
     "on",
 )
-IS_TESTING = os.getenv("PYTEST_VERSION")
 
 device_capability = torch.cuda.get_device_capability()
 device_capability = f"{device_capability[0]}-{device_capability[1]}"
 
 device_name = torch.cuda.get_device_name().replace(" ", "-")
+
+
+def get_config_dir() -> Path:
+    config_dir = Path(
+        platformdirs.user_config_dir(appname="trifast", version=version("trifast")),
+        ensure_exists=False,
+    )
+
+    if config_dir.exists():
+        return config_dir
+
+    # If it doesn't exist, this is a fresh install.
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    return config_dir
+
+
+config_dir = get_config_dir()
 
 
 def config_to_dict(config: triton.Config) -> dict:
@@ -40,71 +53,6 @@ def dict_to_config(d: dict) -> triton.Config:
         num_stages=d["num_stages"],
     )
 
-
-# THIS IS COMICALLY BRITTLE. RELIES ON THE ORDER OF KEYS PASSED TO AUTOTUNE.
-def parse_config_key(key: str) -> dict:
-    h, dim, n, dtype, *_ = key.split("_")
-
-    h = int(h)
-    dim = int(dim)
-    n = int(n)
-
-    return {"h": h, "dim": dim, "N": n, "dtype": dtype}
-
-
-def parse_config_file(json_data):
-    # dtype -> h -> dim -> n -> config
-    lookup = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
-
-    for k, v in json_data.items():
-        parsed = parse_config_key(k)
-        lookup[parsed["dtype"]][parsed["h"]][parsed["dim"]][parsed["N"]] = (
-            dict_to_config(v)
-        )
-
-    return lookup
-
-
-def get_config_lookup(fn_name: str):
-    file_path = cache_dir / f"{fn_name}_{device_name}_{device_capability}.json"
-
-    if not file_path.exists():
-        json_data = {}
-
-    else:
-        with file_path.open("r") as f:
-            json_data = json.load(f)
-
-    lookup = parse_config_file(json_data)
-
-    return lookup
-
-
-def prune_configs(configs, named_args, *, lookup, **kwargs):
-    q = named_args["q_ptr"]
-
-    dtype = str(q.dtype)
-    h, n, _, dim = q.shape
-
-    config = lookup[dtype][h][dim].get(n, None)
-
-    # We have an exact match, so just use that, unless we FORCE_TUNE.
-    if config is not None and not FORCE_TUNE:
-        return config
-
-    return configs
-
-
-fwd_lookup = get_config_lookup("_fwd")
-bwd_kv_lookup = get_config_lookup("_bwd_kv")
-bwd_q_lookup = get_config_lookup("_bwd_q")
-bwd_b_lookup = get_config_lookup("_bwd_b")
-
-
-prune_fwd = partial(prune_configs, lookup=fwd_lookup)
-prune_bwd_kv = partial(prune_configs, lookup=bwd_kv_lookup)
-prune_bwd_q = partial(prune_configs, lookup=bwd_q_lookup)
-prune_bwd_b = partial(prune_configs, lookup=bwd_b_lookup)
 
 # Base configs that should be ~ok for things <= 512.
 _fwd_configs = [
