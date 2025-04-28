@@ -1,0 +1,49 @@
+name: Publish
+
+on:
+  push:
+    tags: ['*']
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    environment: pypi
+
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 } # e.g. get the tag for hatch-vcs
+
+      - name: Install uv (and Python 3.10)
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.10"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      # 3️⃣  Build wheel + sdist
+      - name: Build distributions
+        run: uv build --no-sources
+
+      # 4️⃣  Smoke-import to prove the wheel installs
+      - name: Import check
+        shell: bash
+        run: |
+          uv pip install --system dist/*.whl --no-deps
+          python - <<'PY'
+          import importlib.metadata, platform
+          print(
+              "Smoke import OK:",
+              importlib.metadata.version("trifast"),
+              "on Python",
+              platform.python_version(),
+          )
+          PY
+
+      - name: Publish
+        run: uv publish --trusted-publishing always dist/*
