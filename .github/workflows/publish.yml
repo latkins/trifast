@@ -26,15 +26,13 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
 
-      # 3️⃣  Build wheel + sdist
       - name: Build distributions
         run: uv build --no-sources
 
-      # 4️⃣  Smoke-import to prove the wheel installs
       - name: Import check
         shell: bash
         run: |
-          uv pip install --system dist/*.whl --no-deps
+          uv pip install dist/*.whl --no-deps
           python - <<'PY'
           import importlib.metadata, platform
           print(
