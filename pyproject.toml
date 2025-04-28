@@ -1,12 +1,12 @@
 [project]
 name = "trifast"
-version = "0.1.12"
 description = "Fast kernel for triangle self attetion."
 readme = "README.md"
 authors = [
     { name = "Liam Atkinson", email = "hello@liamatkinson.com" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.10"
+dynamic = ["version"]
 dependencies = [
     "einops>=0.8.0",
     "jaxtyping>=0.2.36",
@@ -27,11 +27,16 @@ benchmark = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs>=0.4"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
 package-dir = "src"
+
+[tool.hatch.version]
+source = "vcs"
+tag-pattern = "v?(?P<version>.*)"  # accepts `v1.2.3` or `1.2.3`
+fallback-version = "0.0.0"
 
 [project.scripts]
 trifast-tune = "trifast.tune:main"
