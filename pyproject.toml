@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Liam Atkinson", email = "hello@liamatkinson.com" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "einops>=0.8.0",
     "jaxtyping>=0.2.36",
